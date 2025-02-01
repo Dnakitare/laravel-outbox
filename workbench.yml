@@ -1,0 +1,11 @@
+workbench:
+  start: '/'
+  install: true
+  discovers:
+    web: true
+    api: false
+    commands: true
+  build:
+    - asset-publish
+    - create-sqlite-db
+    - migrate:fresh
