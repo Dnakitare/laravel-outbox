@@ -20,7 +20,6 @@
     },
     "require-dev": {
         "orchestra/testbench": "^8.0",
-        "orchestra/workbench": "^8.0",
         "phpunit/phpunit": "^10.0",
         "laravel/pint": "^1.13"
     },
@@ -31,7 +30,8 @@
     },
     "autoload-dev": {
         "psr-4": {
-            "Laravel\\Outbox\\Tests\\": "tests/"
+            "Laravel\\Outbox\\Tests\\": "tests/",
+            "Laravel\\Outbox\\Tests\\Stubs\\": "tests/Stubs/"
         }
     },
     "extra": {
@@ -41,12 +41,12 @@
             ]
         }
     },
-    "config": {
-        "sort-packages": true
-    },
     "scripts": {
         "test": "vendor/bin/phpunit",
         "format": "vendor/bin/pint"
+    },
+    "config": {
+        "sort-packages": true
     },
     "minimum-stability": "dev",
     "prefer-stable": true
