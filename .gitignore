@@ -12,3 +12,5 @@ coverage/
 *.sublime-workspace
 .DS_Store
 Thumbs.db
+/build/
+phpstan.neon.dist
