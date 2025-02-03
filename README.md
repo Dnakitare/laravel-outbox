@@ -180,8 +180,7 @@ If you discover any security-related issues, please email security@example.com i
 
 ## 👥 Credits
 
-- [Your Name](https://github.com/yourusername)
-- [All Contributors](../../contributors)
+- [Daniel Nakitare](https://github.com/Dnakitare)
 
 ## 📄 License
 
