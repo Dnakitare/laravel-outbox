@@ -52,7 +52,6 @@
         "test": "vendor/bin/phpunit",
         "format": "vendor/bin/pint",
         "analyse": "vendor/bin/phpstan analyse",
-        "test:coverage": "vendor/bin/phpunit --coverage-html coverage",
         "post-autoload-dump": [
             "@php ./vendor/bin/testbench package:discover --ansi"
         ]
