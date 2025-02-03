@@ -45,6 +45,10 @@ class OutboxServiceProvider extends ServiceProvider
             );
         });
 
+
+        // Load migrations
+        $this->loadMigrationsFrom(__DIR__.'/../database/migrations');
+
         // Register facade
         $this->app->alias(OutboxService::class, 'outbox');
     }
@@ -72,6 +76,9 @@ class OutboxServiceProvider extends ServiceProvider
                 RetryFailedCommand::class,
                 InspectDeadLetterCommand::class,
             ]);
+
+            // Register debugger
+            $this->app->singleton(Debug\OutboxDebugger::class);
         }
 
         // Load migrations
