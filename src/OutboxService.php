@@ -4,6 +4,7 @@ namespace Laravel\Outbox;
 
 use Illuminate\Contracts\Events\Dispatcher;
 use Illuminate\Queue\QueueManager;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Laravel\Outbox\Contracts\MetricsCollector;
 use Laravel\Outbox\Contracts\OutboxRepository;
@@ -107,6 +108,99 @@ class OutboxService
 
         $this->queue = $this->originalQueue;
         app()->instance('queue', $this->originalQueue);
+    }
+
+    /**
+     * Get health status of the outbox system
+     */
+    public function health(): array
+    {
+        $messages = DB::table(config('outbox.table.messages', 'outbox_messages'))
+            ->selectRaw('status, count(*) as count')
+            ->groupBy('status')
+            ->pluck('count', 'status')
+            ->all();
+
+        $oldestPending = DB::table(config('outbox.table.messages', 'outbox_messages'))
+            ->where('status', 'pending')
+            ->min('created_at');
+
+        $processingStuck = DB::table(config('outbox.table.messages', 'outbox_messages'))
+            ->where('status', 'processing')
+            ->where('processing_started_at', '<', now()->subHours(1))
+            ->count();
+
+        return [
+            'status' => $this->determineHealthStatus($messages, $oldestPending, $processingStuck),
+            'messages' => $messages,
+            'oldest_pending' => $oldestPending,
+            'stuck_processing' => $processingStuck,
+            'dead_letter' => [
+                'count' => DB::table(config('outbox.table.dead_letter', 'outbox_dead_letter'))->count(),
+                'oldest' => DB::table(config('outbox.table.dead_letter', 'outbox_dead_letter'))->min('created_at'),
+            ],
+        ];
+    }
+
+    public function getStats(): array
+    {
+        return [
+            'messages' => [
+                'total' => DB::table(config('outbox.table.messages', 'outbox_messages'))->count(),
+                'by_status' => DB::table(config('outbox.table.messages', 'outbox_messages'))
+                    ->selectRaw('status, count(*) as count')
+                    ->groupBy('status')
+                    ->pluck('count', 'status')
+                    ->all(),
+                'by_type' => DB::table(config('outbox.table.messages', 'outbox_messages'))
+                    ->selectRaw('type, count(*) as count')
+                    ->groupBy('type')
+                    ->pluck('count', 'type')
+                    ->all(),
+            ],
+            'processing' => [
+                'last_hour' => DB::table(config('outbox.table.messages', 'outbox_messages'))
+                    ->where('processed_at', '>=', now()->subHour())
+                    ->count(),
+                'last_24h' => DB::table(config('outbox.table.messages', 'outbox_messages'))
+                    ->where('processed_at', '>=', now()->subDay())
+                    ->count(),
+            ],
+            'failures' => [
+                'total' => DB::table(config('outbox.table.messages', 'outbox_messages'))
+                    ->where('status', 'failed')
+                    ->count(),
+                'dead_letter' => DB::table(config('outbox.table.dead_letter', 'outbox_dead_letter'))
+                    ->count(),
+            ],
+            'performance' => [
+                'avg_processing_time' => DB::table(config('outbox.table.messages', 'outbox_messages'))
+                    ->whereNotNull('processed_at')
+                    ->whereNotNull('processing_started_at')
+                    ->selectRaw('AVG(TIMESTAMPDIFF(SECOND, processing_started_at, processed_at)) as avg_time')
+                    ->value('avg_time'),
+            ],
+        ];
+    }
+
+    private function determineHealthStatus(array $messages, ?string $oldestPending, int $processingStuck): string
+    {
+        // Critical if there are stuck processing messages
+        if ($processingStuck > 0) {
+            return 'critical';
+        }
+
+        // Warning if there are pending messages older than 1 hour
+        if ($oldestPending && now()->subHour()->gt($oldestPending)) {
+            return 'warning';
+        }
+
+        // Warning if there are more than 1000 pending messages
+        if (($messages['pending'] ?? 0) > 1000) {
+            return 'warning';
+        }
+
+        return 'healthy';
     }
 
     protected function storePendingMessages(string $aggregateType, string $aggregateId): void
