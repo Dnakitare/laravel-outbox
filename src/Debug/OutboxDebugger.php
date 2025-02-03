@@ -2,8 +2,8 @@
 
 namespace Laravel\Outbox\Debug;
 
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 
 class OutboxDebugger
 {
@@ -16,7 +16,7 @@ class OutboxDebugger
             ->where('id', $messageId)
             ->first();
 
-        if (!$message) {
+        if (! $message) {
             return null;
         }
 
@@ -58,7 +58,7 @@ class OutboxDebugger
                         'processing_started' => $message->processing_started_at,
                         'processed' => $message->processed_at,
                     ],
-                    'duration' => $message->processed_at 
+                    'duration' => $message->processed_at
                         ? strtotime($message->processed_at) - strtotime($message->processing_started_at)
                         : null,
                 ];

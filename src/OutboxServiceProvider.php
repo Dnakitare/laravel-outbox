@@ -45,7 +45,6 @@ class OutboxServiceProvider extends ServiceProvider
             );
         });
 
-
         // Load migrations
         $this->loadMigrationsFrom(__DIR__.'/../database/migrations');
 
