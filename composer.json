@@ -28,7 +28,8 @@
         "nunomaduro/larastan": "^2.0",
         "mockery/mockery": "^1.6",
         "pestphp/pest": "^2.0",
-        "pestphp/pest-plugin-laravel": "^2.0"
+        "pestphp/pest-plugin-laravel": "^2.0",
+        "friendsofphp/php-cs-fixer": "^3.49"
     },
     "autoload": {
         "psr-4": {
