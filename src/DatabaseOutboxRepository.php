@@ -161,43 +161,56 @@ class DatabaseOutboxRepository implements OutboxRepository
 
     public function resetFailed(?array $ids = null, bool $preserveHistory = true): int
     {
-        $query = $this->db->table($this->messagesTable)->where('status', 'failed');
+        $now = now();
 
+        // Fast path: purging history means every row gets the same update,
+        // so we can do it with a single UPDATE regardless of batch size.
+        if (! $preserveHistory) {
+            $query = $this->db->table($this->messagesTable)->where('status', 'failed');
+            if ($ids !== null) {
+                $query->whereIn('id', $ids);
+            }
+
+            return $query->update([
+                'status' => 'pending',
+                'attempts' => 0,
+                'error' => null,
+                'history' => null,
+                'available_at' => $now,
+                'processing_started_at' => null,
+                'updated_at' => $now,
+            ]);
+        }
+
+        // Slow path: each row's history is unique, so we loop. chunkById
+        // keeps memory bounded for large failed-message backlogs.
+        $query = $this->db->table($this->messagesTable)->where('status', 'failed');
         if ($ids !== null) {
             $query->whereIn('id', $ids);
         }
 
-        $now = now();
         $reset = 0;
-
-        $query->orderBy('id')->chunkById(500, function ($rows) use (&$reset, $now, $preserveHistory) {
+        $query->orderBy('id')->chunkById(500, function ($rows) use (&$reset, $now) {
             foreach ($rows as $row) {
-                $update = [
-                    'status' => 'pending',
-                    'attempts' => 0,
-                    'error' => null,
-                    'available_at' => $now,
-                    'processing_started_at' => null,
-                    'updated_at' => $now,
-                ];
-
-                if ($preserveHistory) {
-                    $update['history'] = $this->appendHistoryEntry(
-                        $row->history,
-                        [
-                            'attempts' => (int) $row->attempts,
-                            'error' => $row->error,
-                            'failed_at' => (string) ($row->updated_at ?? $now),
-                            'reset_at' => (string) $now,
-                        ]
-                    );
-                } else {
-                    $update['history'] = null;
-                }
-
                 $this->db->table($this->messagesTable)
                     ->where('id', $row->id)
-                    ->update($update);
+                    ->update([
+                        'status' => 'pending',
+                        'attempts' => 0,
+                        'error' => null,
+                        'available_at' => $now,
+                        'processing_started_at' => null,
+                        'updated_at' => $now,
+                        'history' => $this->appendHistoryEntry(
+                            $row->history,
+                            [
+                                'attempts' => (int) $row->attempts,
+                                'error' => $row->error,
+                                'failed_at' => (string) ($row->updated_at ?? $now),
+                                'reset_at' => (string) $now,
+                            ]
+                        ),
+                    ]);
 
                 $reset++;
             }

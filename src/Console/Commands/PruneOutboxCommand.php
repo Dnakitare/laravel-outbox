@@ -9,10 +9,10 @@ use Illuminate\Support\Facades\DB;
 class PruneOutboxCommand extends Command
 {
     protected $signature = 'outbox:prune
-                          {--completed-days=7 : Days to keep completed messages}
-                          {--failed-days=30 : Days to keep failed messages}
-                          {--dead-letter-days=90 : Days to keep dead letter messages}
-                          {--batch=1000 : Delete chunk size}
+                          {--completed-days= : Days to keep completed messages (default: outbox.pruning.retention_days)}
+                          {--failed-days= : Days to keep failed messages (default: outbox.pruning.retention_days * 4)}
+                          {--dead-letter-days= : Days to keep dead letter messages (default: outbox.dead_letter.retention_days)}
+                          {--batch= : Delete chunk size (default: outbox.pruning.chunk_size)}
                           {--force : Skip confirmation}';
 
     protected $description = 'Prune old outbox messages';
@@ -23,20 +23,35 @@ class PruneOutboxCommand extends Command
             return 1;
         }
 
-        $batch = max(1, (int) $this->option('batch'));
+        $defaultRetention = (int) config('outbox.pruning.retention_days', 7);
 
-        $completed = $this->pruneByStatus('completed', (int) $this->option('completed-days'), $batch);
+        $completedDays = $this->intOption('completed-days', $defaultRetention);
+        $failedDays = $this->intOption('failed-days', $defaultRetention * 4);
+        $deadLetterDays = $this->intOption(
+            'dead-letter-days',
+            (int) config('outbox.dead_letter.retention_days', 30)
+        );
+        $batch = max(1, $this->intOption('batch', (int) config('outbox.pruning.chunk_size', 1000)));
+
+        $completed = $this->pruneByStatus('completed', $completedDays, $batch);
         $this->info("Pruned {$completed} completed messages.");
 
-        $failed = $this->pruneByStatus('failed', (int) $this->option('failed-days'), $batch);
+        $failed = $this->pruneByStatus('failed', $failedDays, $batch);
         $this->info("Pruned {$failed} failed messages.");
 
         if (config('outbox.dead_letter.enabled', true)) {
-            $dead = $this->pruneDeadLetter((int) $this->option('dead-letter-days'), $batch);
+            $dead = $this->pruneDeadLetter($deadLetterDays, $batch);
             $this->info("Pruned {$dead} dead letter messages.");
         }
 
         return 0;
+    }
+
+    protected function intOption(string $key, int $default): int
+    {
+        $value = $this->option($key);
+
+        return $value === null || $value === '' ? $default : (int) $value;
     }
 
     protected function pruneByStatus(string $status, int $days, int $batch): int

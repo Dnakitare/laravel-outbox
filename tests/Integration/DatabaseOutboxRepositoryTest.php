@@ -132,6 +132,30 @@ class DatabaseOutboxRepositoryTest extends TestCase
         ]);
     }
 
+    public function test_reset_failed_purge_history_uses_batch_update(): void
+    {
+        $this->seedPending('Order', '401', 3);
+        foreach ($this->repository->claimPendingMessages(10) as $m) {
+            $this->repository->markAsFailed(
+                $m->getId(),
+                new \RuntimeException('boom'),
+                now(),
+                exhausted: true,
+            );
+        }
+
+        $reset = $this->repository->resetFailed(ids: null, preserveHistory: false);
+        $this->assertSame(3, $reset);
+
+        $rows = $this->app['db']->table('outbox_messages')->get();
+        foreach ($rows as $row) {
+            $this->assertSame('pending', $row->status);
+            $this->assertSame(0, (int) $row->attempts);
+            $this->assertNull($row->error);
+            $this->assertNull($row->history);
+        }
+    }
+
     public function test_reset_failed_preserves_history(): void
     {
         $this->seedPending('Order', '400', 1);

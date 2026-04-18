@@ -11,6 +11,7 @@ use Laravel\Outbox\Events\MessageProcessed;
 use Laravel\Outbox\Events\MessagesStored;
 use Laravel\Outbox\Jobs\ProcessOutboxMessages;
 use Laravel\Outbox\OutboxService;
+use Laravel\Outbox\Tests\Stubs\TestDeadOnWakeupJob;
 use Laravel\Outbox\Tests\Stubs\TestFailingEvent;
 use Laravel\Outbox\Tests\Stubs\TestOrderCreated;
 use Laravel\Outbox\Tests\TestCase;
@@ -115,6 +116,39 @@ class OutboxProcessingTest extends TestCase
         $this->assertSame(2, $this->runProcessor(2));
         $this->assertSame(1, DB::table('outbox_messages')->where('status', 'pending')->count());
         $this->assertSame(4, DB::table('outbox_messages')->where('status', 'completed')->count());
+    }
+
+    public function test_job_rehydration_failure_retries_then_dead_letters(): void
+    {
+        // Simulates a payload whose unserialize succeeds the write path
+        // but throws at replay time — for instance, a queued job that
+        // holds a reference to a model that has since been deleted.
+        // Outbox should catch the failure, apply backoff, and
+        // eventually send the message to dead-letter.
+        app(OutboxService::class)->transaction('Order', 'dead', function () {
+            dispatch(new TestDeadOnWakeupJob);
+        });
+
+        $id = DB::table('outbox_messages')->value('id');
+        $this->assertNotNull($id);
+
+        $max = (int) config('outbox.processing.max_attempts');
+        for ($i = 1; $i <= $max; $i++) {
+            DB::table('outbox_messages')
+                ->where('id', $id)
+                ->update(['available_at' => now()->subSecond()]);
+
+            $this->runProcessor();
+        }
+
+        $row = DB::table('outbox_messages')->where('id', $id)->first();
+        $this->assertSame('failed', $row->status);
+        $this->assertStringContainsString('rehydration failed', (string) $row->error);
+
+        $dl = DB::table('outbox_dead_letter')->where('original_message_id', $id)->first();
+        $this->assertNotNull($dl);
+        $this->assertSame('Order', $dl->aggregate_type);
+        $this->assertSame('dead', $dl->aggregate_id);
     }
 
     public function test_payload_integrity_failure_sends_to_dead_letter(): void

@@ -43,6 +43,7 @@ class TestCase extends Orchestra
             \Laravel\Outbox\Tests\Stubs\TestJob::class,
             \Laravel\Outbox\Tests\Stubs\TestOrderCreated::class,
             \Laravel\Outbox\Tests\Stubs\TestFailingEvent::class,
+            \Laravel\Outbox\Tests\Stubs\TestDeadOnWakeupJob::class,
         ]);
     }
 }
