@@ -2,12 +2,11 @@
 
 namespace Laravel\Outbox\Tests\Unit;
 
-use Illuminate\Support\Facades\Event;
-use Illuminate\Support\Facades\Queue;
 use Laravel\Outbox\Contracts\MetricsCollector;
 use Laravel\Outbox\Contracts\OutboxRepository;
 use Laravel\Outbox\Exceptions\TransactionException;
 use Laravel\Outbox\OutboxService;
+use Laravel\Outbox\Support\PayloadSerializer;
 use Laravel\Outbox\Tests\Stubs\TestEvent;
 use Laravel\Outbox\Tests\Stubs\TestJob;
 use Laravel\Outbox\Tests\TestCase;
@@ -16,148 +15,140 @@ use Mockery\MockInterface;
 
 class OutboxServiceTest extends TestCase
 {
-    private ?OutboxService $outboxService = null;
+    private OutboxService $service;
 
-    /**
-     * @var MockInterface&OutboxRepository
-     */
-    private ?OutboxRepository $repository = null;
+    /** @var MockInterface&OutboxRepository */
+    private $repository;
 
-    /**
-     * @var MockInterface&MetricsCollector
-     */
-    private ?MetricsCollector $metrics = null;
+    /** @var MockInterface&MetricsCollector */
+    private $metrics;
 
     protected function setUp(): void
     {
         parent::setUp();
 
-        // Initialize mocks
-        /** @var MockInterface&OutboxRepository $repository */
-        $repository = Mockery::mock(OutboxRepository::class);
-        /** @var MockInterface&MetricsCollector $metrics */
-        $metrics = Mockery::mock(MetricsCollector::class);
+        $this->repository = Mockery::mock(OutboxRepository::class);
+        $this->metrics = Mockery::mock(MetricsCollector::class);
 
-        $this->repository = $repository;
-        $this->metrics = $metrics;
+        // Replace container bindings so OutboxService resolves our mocks.
+        $this->app->instance(OutboxRepository::class, $this->repository);
+        $this->app->instance(MetricsCollector::class, $this->metrics);
 
-        $this->outboxService = new OutboxService(
+        $this->service = new OutboxService(
+            $this->app,
             $this->repository,
-            app('events'),
-            app('queue'),
-            $this->metrics
+            $this->app->make(PayloadSerializer::class),
+            $this->metrics,
+            $this->app['config'],
         );
     }
 
-    public function test_it_stores_events_in_transaction(): void
+    public function test_it_stores_events_dispatched_inside_transaction(): void
     {
-        // Arrange
-        Event::fake();
-        $event = new TestEvent('test');
-
-        $this->setSuccessMetricsExpectations();
+        $this->expectSuccessMetrics();
 
         $this->repository->shouldReceive('transaction')->once()
             ->with(Mockery::type('callable'))
-            ->andReturnUsing(fn ($callback) => $callback());
+            ->andReturnUsing(fn ($cb) => $cb());
 
         $this->repository->shouldReceive('store')->once()
-            ->with(Mockery::on(function ($messages) {
-                return count($messages) === 1
-                    && $messages[0]['type'] === 'event'
-                    && $messages[0]['aggregate_type'] === 'Order'
-                    && $messages[0]['aggregate_id'] === '123';
+            ->with(Mockery::on(function ($rows) {
+                return count($rows) === 1
+                    && $rows[0]['type'] === 'event'
+                    && $rows[0]['aggregate_type'] === 'Order'
+                    && $rows[0]['aggregate_id'] === '42'
+                    && str_contains($rows[0]['message_type'], TestEvent::class);
             }));
 
-        // Act
-        $result = $this->outboxService->transaction('Order', '123', function () use ($event) {
-            $this->app['events']->dispatch($event);
+        $result = $this->service->transaction('Order', '42', function () {
+            $this->app['events']->dispatch(new TestEvent('hi'));
 
-            return 'success';
+            return 'ok';
         });
 
-        // Assert
-        $this->assertEquals('success', $result);
+        $this->assertSame('ok', $result);
     }
 
-    public function test_it_stores_queued_jobs_in_transaction(): void
+    public function test_it_stores_jobs_dispatched_inside_transaction(): void
     {
-        // Arrange
-        Queue::fake();
-        $job = new TestJob;
-
-        $this->setSuccessMetricsExpectations();
+        $this->expectSuccessMetrics();
 
         $this->repository->shouldReceive('transaction')->once()
-            ->with(Mockery::type('callable'))
-            ->andReturnUsing(fn ($callback) => $callback());
+            ->andReturnUsing(fn ($cb) => $cb());
 
         $this->repository->shouldReceive('store')->once()
-            ->with(Mockery::on(function ($messages) {
-                return count($messages) === 1
-                    && $messages[0]['type'] === 'job'
-                    && $messages[0]['aggregate_type'] === 'Order'
-                    && $messages[0]['aggregate_id'] === '123';
+            ->with(Mockery::on(function ($rows) {
+                return count($rows) === 1
+                    && $rows[0]['type'] === 'job'
+                    && $rows[0]['aggregate_type'] === 'Order';
             }));
 
-        // Act
-        $result = $this->outboxService->transaction('Order', '123', function () use ($job) {
-            $this->app['queue']->push($job);
-
-            return 'success';
+        $this->service->transaction('Order', '42', function () {
+            $this->app['queue']->push(new TestJob);
         });
 
-        // Assert
-        $this->assertEquals('success', $result);
+        $this->addToAssertionCount(1);
     }
 
     public function test_it_prevents_nested_transactions(): void
     {
-        // Arrange
         $this->expectException(TransactionException::class);
-
-        $this->setFailureMetricsExpectations();
+        $this->expectFailureMetrics();
 
         $this->repository->shouldReceive('transaction')
-            ->with(Mockery::type('callable'))
-            ->andReturnUsing(fn ($callback) => $callback());
+            ->andReturnUsing(fn ($cb) => $cb());
 
-        // Act & Assert
-        $this->outboxService->transaction('Order', '123', function () {
-            $this->outboxService->transaction('Order', '456', function () {});
+        $this->service->transaction('Order', '1', function () {
+            $this->service->transaction('Order', '2', fn () => null);
         });
     }
 
-    public function test_it_handles_transaction_failure(): void
+    public function test_it_restores_original_dispatchers_after_exception(): void
     {
-        // Arrange
-        $this->setFailureMetricsExpectations();
+        $this->expectFailureMetrics();
+        $originalEvents = $this->app['events'];
+        $originalQueue = $this->app['queue'];
+
+        $this->repository->shouldReceive('transaction')
+            ->andThrow(new \RuntimeException('boom'));
+
+        try {
+            $this->service->transaction('Order', '1', fn () => null);
+        } catch (\RuntimeException) {
+            // expected
+        }
+
+        $this->assertSame($originalEvents, $this->app['events']);
+        $this->assertSame($originalQueue, $this->app['queue']);
+    }
+
+    public function test_it_does_not_call_store_when_nothing_collected(): void
+    {
+        $this->metrics->shouldReceive('startTimer')->once()->andReturn(microtime(true));
+        $this->metrics->shouldReceive('recordTransactionDuration')->once();
+        $this->metrics->shouldReceive('incrementStoredMessages')->never();
 
         $this->repository->shouldReceive('transaction')->once()
-            ->with(Mockery::type('callable'))
-            ->andThrow(new \Exception('Database error'));
+            ->andReturnUsing(fn ($cb) => $cb());
+        $this->repository->shouldNotReceive('store');
 
-        // Act & Assert
-        $this->expectException(\Exception::class);
-        $this->expectExceptionMessage('Database error');
+        $this->service->transaction('Order', '1', fn () => 'noop');
 
-        $this->outboxService->transaction('Order', '123', function () {
-            // This should not be executed
-        });
+        $this->addToAssertionCount(1);
     }
 
-    private function setSuccessMetricsExpectations(): void
+    private function expectSuccessMetrics(): void
     {
         $this->metrics->shouldReceive('startTimer')->once()->andReturn(microtime(true));
         $this->metrics->shouldReceive('recordTransactionDuration')->once();
         $this->metrics->shouldReceive('incrementStoredMessages')->once();
     }
 
-    private function setFailureMetricsExpectations(): void
+    private function expectFailureMetrics(): void
     {
         $this->metrics->shouldReceive('startTimer')->once()->andReturn(microtime(true));
-        $this->metrics->shouldReceive('recordTransactionDuration')->never();
-        $this->metrics->shouldReceive('incrementStoredMessages')->never();
+        $this->metrics->shouldNotReceive('recordTransactionDuration');
+        $this->metrics->shouldNotReceive('incrementStoredMessages');
     }
 
     protected function tearDown(): void

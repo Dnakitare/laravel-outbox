@@ -5,55 +5,78 @@ namespace Laravel\Outbox\Support;
 use Illuminate\Contracts\Events\Dispatcher;
 use Laravel\Outbox\OutboxService;
 
+/**
+ * Intercepts events dispatched during an outbox transaction and routes
+ * them to the outbox service for persistence instead of letting them
+ * fire listeners inline.
+ *
+ * Listener registration, subscribers, push, until, etc. pass through
+ * unchanged to the wrapped dispatcher.
+ */
 class CollectingEventDispatcher implements Dispatcher
 {
     public function __construct(
-        private OutboxService $outboxService,
-        private Dispatcher $dispatcher
+        protected OutboxService $outboxService,
+        protected Dispatcher $inner,
     ) {}
 
     public function dispatch($event, $payload = [], $halt = false)
     {
-        $this->outboxService->collect($event, 'event');
+        // Normalise the Laravel signature: dispatch may be called with
+        // either an event object, or a string event name + payload.
+        // In both cases we capture exactly what the caller supplied.
+        $this->outboxService->collect([
+            'event' => $event,
+            'payload' => is_array($payload) ? $payload : [$payload],
+        ], 'event');
+
+        // The interface contract is `array|null`. Listeners intentionally
+        // do not run inside the outbox transaction — they'll run when
+        // the replay job rehydrates the event. Returning null signals
+        // "no listeners responded", which is truthful.
+        return $halt ? null : [];
     }
 
     public function listen($events, $listener = null): void
     {
-        $this->dispatcher->listen($events, $listener);
+        $this->inner->listen($events, $listener);
     }
 
     public function hasListeners($eventName): bool
     {
-        return $this->dispatcher->hasListeners($eventName);
+        return $this->inner->hasListeners($eventName);
     }
 
     public function subscribe($subscriber): void
     {
-        $this->dispatcher->subscribe($subscriber);
+        $this->inner->subscribe($subscriber);
     }
 
     public function until($event, $payload = [])
     {
-        return $this->dispatcher->until($event, $payload);
+        // `until` expects a synchronous response from listeners (e.g.
+        // authorization gates). We can't defer those — pass through so
+        // the app's semantics are preserved.
+        return $this->inner->until($event, $payload);
     }
 
     public function forget($event): void
     {
-        $this->dispatcher->forget($event);
+        $this->inner->forget($event);
     }
 
     public function forgetPushed(): void
     {
-        $this->dispatcher->forgetPushed();
+        $this->inner->forgetPushed();
     }
 
     public function push($event, $payload = []): void
     {
-        $this->dispatcher->push($event, $payload);
+        $this->inner->push($event, $payload);
     }
 
     public function flush($event): void
     {
-        $this->dispatcher->flush($event);
+        $this->inner->flush($event);
     }
 }

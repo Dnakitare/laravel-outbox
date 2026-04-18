@@ -10,13 +10,6 @@ class TestCase extends Orchestra
 {
     use RefreshDatabase;
 
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        // Additional setup
-    }
-
     protected function getPackageProviders($app): array
     {
         return [
@@ -31,7 +24,6 @@ class TestCase extends Orchestra
 
     protected function getEnvironmentSetUp($app): void
     {
-        // Use in-memory SQLite database for testing
         $app['config']->set('database.default', 'testing');
         $app['config']->set('database.connections.testing', [
             'driver' => 'sqlite',
@@ -39,7 +31,18 @@ class TestCase extends Orchestra
             'prefix' => '',
         ]);
 
-        // Set default outbox configuration for testing
+        $app['config']->set('app.key', 'base64:'.base64_encode(random_bytes(32)));
+
+        // Processing immediately would push ProcessOutboxMessages onto
+        // the queue which is not what most tests want to assert.
         $app['config']->set('outbox.processing.process_immediately', false);
+
+        // Permit the test stub classes to rehydrate.
+        $app['config']->set('outbox.serialization.allowed_classes', [
+            \Laravel\Outbox\Tests\Stubs\TestEvent::class,
+            \Laravel\Outbox\Tests\Stubs\TestJob::class,
+            \Laravel\Outbox\Tests\Stubs\TestOrderCreated::class,
+            \Laravel\Outbox\Tests\Stubs\TestFailingEvent::class,
+        ]);
     }
 }

@@ -2,18 +2,24 @@
 
 namespace Laravel\Outbox;
 
+use Illuminate\Contracts\Config\Repository as Config;
+use Illuminate\Contracts\Container\Container;
 use Illuminate\Contracts\Events\Dispatcher;
 use Illuminate\Queue\QueueManager;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Laravel\Outbox\Contracts\MetricsCollector;
 use Laravel\Outbox\Contracts\OutboxRepository;
+use Laravel\Outbox\Events\MessagesStored;
 use Laravel\Outbox\Exceptions\TransactionException;
 use Laravel\Outbox\Support\CollectingEventDispatcher;
 use Laravel\Outbox\Support\CollectingQueueManager;
+use Laravel\Outbox\Support\PayloadSerializer;
 
 class OutboxService
 {
+    /** @var array<int, array{message: mixed, type: string}> */
     protected array $pendingMessages = [];
 
     protected bool $isCollecting = false;
@@ -22,21 +28,31 @@ class OutboxService
 
     protected ?string $correlationId = null;
 
-    protected $originalDispatcher;
+    protected ?Dispatcher $originalDispatcher = null;
 
-    protected $originalQueue;
+    protected ?QueueManager $originalQueue = null;
+
+    protected string $messagesTable;
+
+    protected string $deadLetterTable;
 
     public function __construct(
+        protected Container $container,
         protected OutboxRepository $repository,
-        protected Dispatcher $events,
-        protected QueueManager $queue,
-        protected MetricsCollector $metrics
+        protected PayloadSerializer $serializer,
+        protected MetricsCollector $metrics,
+        protected Config $config,
     ) {
-        $this->originalDispatcher = $events;
-        $this->originalQueue = $queue;
+        $this->messagesTable = $config->get('outbox.table.messages', 'outbox_messages');
+        $this->deadLetterTable = $config->get('outbox.table.dead_letter', 'outbox_dead_letter');
     }
 
-    public function transaction(string $aggregateType, string $aggregateId, callable $callback)
+    /**
+     * Run $callback inside a transactional outbox scope. Any events
+     * dispatched or jobs queued during the callback are captured and
+     * persisted atomically with $callback's own DB writes.
+     */
+    public function transaction(string $aggregateType, string $aggregateId, callable $callback): mixed
     {
         if ($this->isCollecting) {
             throw new TransactionException('Nested outbox transactions are not supported.');
@@ -44,33 +60,48 @@ class OutboxService
 
         $this->startCollecting();
 
+        $timer = $this->metrics->startTimer();
+        $storedCount = 0;
+        $result = null;
+        $transactionId = null;
+        $correlationId = null;
+
         try {
-            $this->currentTransactionId = (string) Str::uuid();
-            $this->correlationId = (string) Str::uuid();
+            $this->currentTransactionId = $transactionId = (string) Str::uuid();
+            $this->correlationId = $correlationId = (string) Str::uuid();
 
-            $timer = $this->metrics->startTimer();
-
-            $result = $this->repository->transaction(function () use ($callback, $aggregateType, $aggregateId) {
+            $result = $this->repository->transaction(function () use ($callback, $aggregateType, $aggregateId, &$storedCount) {
                 $result = $callback();
 
                 if (! empty($this->pendingMessages)) {
-                    $this->storePendingMessages($aggregateType, $aggregateId);
+                    $storedCount = $this->storePendingMessages($aggregateType, $aggregateId);
                 }
 
                 return $result;
             });
 
             $this->metrics->recordTransactionDuration($timer);
-
-            return $result;
         } finally {
+            // Restore original event/queue bindings BEFORE any
+            // afterCommit side-effects so emitted events / dispatched
+            // jobs flow through the real dispatchers.
             $this->stopCollecting();
             $this->currentTransactionId = null;
             $this->correlationId = null;
+            $this->pendingMessages = [];
         }
+
+        if ($storedCount > 0) {
+            $this->afterCommit($storedCount, $transactionId, $correlationId);
+        }
+
+        return $result;
     }
 
-    public function collect($message, string $type): void
+    /**
+     * Called by CollectingEventDispatcher / CollectingQueue.
+     */
+    public function collect(mixed $message, string $type): void
     {
         if (! $this->isCollecting) {
             throw new TransactionException('Cannot collect messages outside of an outbox transaction.');
@@ -87,127 +118,51 @@ class OutboxService
         $this->isCollecting = true;
         $this->pendingMessages = [];
 
-        // Replace event dispatcher with collecting dispatcher
-        $collectingDispatcher = new CollectingEventDispatcher($this, $this->events);
-        $this->events = $collectingDispatcher;
-        app()->instance('events', $collectingDispatcher);
+        $this->originalDispatcher = $this->container->make('events');
+        $this->originalQueue = $this->container->make('queue');
 
-        // Replace queue with collecting queue
-        $collectingQueue = new CollectingQueueManager($this);
-        $this->queue = $collectingQueue;
-        app()->instance('queue', $collectingQueue);
+        $this->container->instance(
+            'events',
+            new CollectingEventDispatcher($this, $this->originalDispatcher)
+        );
+
+        $this->container->instance(
+            'queue',
+            new CollectingQueueManager($this, $this->originalQueue)
+        );
     }
 
     protected function stopCollecting(): void
     {
         $this->isCollecting = false;
 
-        // Restore original dispatchers
-        $this->events = $this->originalDispatcher;
-        app()->instance('events', $this->originalDispatcher);
-
-        $this->queue = $this->originalQueue;
-        app()->instance('queue', $this->originalQueue);
-    }
-
-    /**
-     * Get health status of the outbox system
-     */
-    public function health(): array
-    {
-        $messages = DB::table(config('outbox.table.messages', 'outbox_messages'))
-            ->selectRaw('status, count(*) as count')
-            ->groupBy('status')
-            ->pluck('count', 'status')
-            ->all();
-
-        $oldestPending = DB::table(config('outbox.table.messages', 'outbox_messages'))
-            ->where('status', 'pending')
-            ->min('created_at');
-
-        $processingStuck = DB::table(config('outbox.table.messages', 'outbox_messages'))
-            ->where('status', 'processing')
-            ->where('processing_started_at', '<', now()->subHours(1))
-            ->count();
-
-        return [
-            'status' => $this->determineHealthStatus($messages, $oldestPending, $processingStuck),
-            'messages' => $messages,
-            'oldest_pending' => $oldestPending,
-            'stuck_processing' => $processingStuck,
-            'dead_letter' => [
-                'count' => DB::table(config('outbox.table.dead_letter', 'outbox_dead_letter'))->count(),
-                'oldest' => DB::table(config('outbox.table.dead_letter', 'outbox_dead_letter'))->min('created_at'),
-            ],
-        ];
-    }
-
-    public function getStats(): array
-    {
-        return [
-            'messages' => [
-                'total' => DB::table(config('outbox.table.messages', 'outbox_messages'))->count(),
-                'by_status' => DB::table(config('outbox.table.messages', 'outbox_messages'))
-                    ->selectRaw('status, count(*) as count')
-                    ->groupBy('status')
-                    ->pluck('count', 'status')
-                    ->all(),
-                'by_type' => DB::table(config('outbox.table.messages', 'outbox_messages'))
-                    ->selectRaw('type, count(*) as count')
-                    ->groupBy('type')
-                    ->pluck('count', 'type')
-                    ->all(),
-            ],
-            'processing' => [
-                'last_hour' => DB::table(config('outbox.table.messages', 'outbox_messages'))
-                    ->where('processed_at', '>=', now()->subHour())
-                    ->count(),
-                'last_24h' => DB::table(config('outbox.table.messages', 'outbox_messages'))
-                    ->where('processed_at', '>=', now()->subDay())
-                    ->count(),
-            ],
-            'failures' => [
-                'total' => DB::table(config('outbox.table.messages', 'outbox_messages'))
-                    ->where('status', 'failed')
-                    ->count(),
-                'dead_letter' => DB::table(config('outbox.table.dead_letter', 'outbox_dead_letter'))
-                    ->count(),
-            ],
-            'performance' => [
-                'avg_processing_time' => DB::table(config('outbox.table.messages', 'outbox_messages'))
-                    ->whereNotNull('processed_at')
-                    ->whereNotNull('processing_started_at')
-                    ->selectRaw('AVG(TIMESTAMPDIFF(SECOND, processing_started_at, processed_at)) as avg_time')
-                    ->value('avg_time'),
-            ],
-        ];
-    }
-
-    private function determineHealthStatus(array $messages, ?string $oldestPending, int $processingStuck): string
-    {
-        // Critical if there are stuck processing messages
-        if ($processingStuck > 0) {
-            return 'critical';
+        if ($this->originalDispatcher !== null) {
+            $this->container->instance('events', $this->originalDispatcher);
         }
 
-        // Warning if there are pending messages older than 1 hour
-        if ($oldestPending && now()->subHour()->gt($oldestPending)) {
-            return 'warning';
+        if ($this->originalQueue !== null) {
+            $this->container->instance('queue', $this->originalQueue);
         }
 
-        // Warning if there are more than 1000 pending messages
-        if (($messages['pending'] ?? 0) > 1000) {
-            return 'warning';
-        }
-
-        return 'healthy';
+        $this->originalDispatcher = null;
+        $this->originalQueue = null;
     }
 
-    protected function storePendingMessages(string $aggregateType, string $aggregateId): void
+    protected function storePendingMessages(string $aggregateType, string $aggregateId): int
     {
-        $messages = [];
+        $now = Carbon::now();
+        $rows = [];
+
         foreach ($this->pendingMessages as $index => $pending) {
-            $messages[] = [
+            $messageObject = $this->extractMessage($pending);
+            // Serialize just the captured payload (what the collecting
+            // dispatcher passed to collect()), not the outer {message,
+            // type} envelope. The outer envelope is metadata the
+            // database row already stores explicitly.
+            $payload = $this->serializer->serialize($pending['message']);
+            $hash = $this->serializer->hash($payload);
+
+            $rows[] = [
                 'id' => (string) Str::uuid(),
                 'transaction_id' => $this->currentTransactionId,
                 'correlation_id' => $this->correlationId,
@@ -215,18 +170,172 @@ class OutboxService
                 'type' => $pending['type'],
                 'aggregate_type' => $aggregateType,
                 'aggregate_id' => $aggregateId,
-                'message_type' => get_class($pending['message']),
-                'payload' => serialize($pending['message']),
+                'message_type' => is_object($messageObject) ? get_class($messageObject) : gettype($messageObject),
+                'payload' => $payload,
+                'payload_hash' => substr($hash, 0, 64),
                 'status' => 'pending',
                 'attempts' => 0,
-                'created_at' => now(),
-                'updated_at' => now(),
+                'available_at' => $now,
+                'created_at' => $now,
+                'updated_at' => $now,
             ];
         }
 
-        if (! empty($messages)) {
-            $this->repository->store($messages);
-            $this->metrics->incrementStoredMessages(count($messages));
+        if (empty($rows)) {
+            return 0;
         }
+
+        $this->repository->store($rows);
+        $this->metrics->incrementStoredMessages(count($rows));
+
+        return count($rows);
+    }
+
+    protected function extractMessage(array $pending): mixed
+    {
+        $message = $pending['message'];
+
+        if (! is_array($message)) {
+            return $message;
+        }
+
+        if (isset($message['event'])) {
+            return $message['event'];
+        }
+
+        if (isset($message['job'])) {
+            return $message['job'];
+        }
+
+        return $message;
+    }
+
+    /**
+     * Hook point after the outbox transaction commits successfully.
+     * Dispatches the internal MessagesStored event so metrics sinks and
+     * other listeners can react, and optionally kicks the processor job
+     * if process_immediately is enabled.
+     */
+    protected function afterCommit(int $storedCount, string $transactionId, string $correlationId): void
+    {
+        $this->container->make('events')->dispatch(new MessagesStored(
+            transactionId: $transactionId,
+            correlationId: $correlationId,
+            count: $storedCount,
+        ));
+
+        if (! $this->config->get('outbox.processing.process_immediately', false)) {
+            return;
+        }
+
+        try {
+            $job = new \Laravel\Outbox\Jobs\ProcessOutboxMessages(
+                batchSize: (int) $this->config->get('outbox.processing.batch_size', 100)
+            );
+
+            $dispatch = dispatch($job);
+            if ($connection = $this->config->get('outbox.queue.connection')) {
+                $dispatch->onConnection($connection);
+            }
+            if ($queue = $this->config->get('outbox.queue.name')) {
+                $dispatch->onQueue($queue);
+            }
+        } catch (\Throwable $e) {
+            logger()->warning('Failed to schedule immediate outbox processing', [
+                'transaction_id' => $transactionId,
+                'correlation_id' => $correlationId,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    public function health(): array
+    {
+        $lockTimeoutSeconds = (int) $this->config->get('outbox.processing.lock_timeout', 300);
+        $stuckThreshold = Carbon::now()->subSeconds($lockTimeoutSeconds);
+
+        $statusCounts = DB::table($this->messagesTable)
+            ->selectRaw('status, count(*) as count')
+            ->groupBy('status')
+            ->pluck('count', 'status')
+            ->all();
+
+        $oldestPending = DB::table($this->messagesTable)
+            ->where('status', 'pending')
+            ->min('created_at');
+
+        $stuckProcessing = DB::table($this->messagesTable)
+            ->where('status', 'processing')
+            ->where('processing_started_at', '<', $stuckThreshold)
+            ->count();
+
+        $deadLetter = [
+            'count' => DB::table($this->deadLetterTable)->count(),
+            'oldest' => DB::table($this->deadLetterTable)->min('created_at'),
+        ];
+
+        return [
+            'status' => $this->determineHealthStatus($statusCounts, $oldestPending, $stuckProcessing),
+            'messages' => $statusCounts,
+            'oldest_pending' => $oldestPending,
+            'stuck_processing' => $stuckProcessing,
+            'lock_timeout_seconds' => $lockTimeoutSeconds,
+            'dead_letter' => $deadLetter,
+        ];
+    }
+
+    public function getStats(): array
+    {
+        $since24h = Carbon::now()->subDay();
+        $since1h = Carbon::now()->subHour();
+
+        return [
+            'messages' => [
+                'total' => DB::table($this->messagesTable)->count(),
+                'by_status' => DB::table($this->messagesTable)
+                    ->selectRaw('status, count(*) as count')
+                    ->groupBy('status')
+                    ->pluck('count', 'status')
+                    ->all(),
+                'by_type' => DB::table($this->messagesTable)
+                    ->selectRaw('type, count(*) as count')
+                    ->groupBy('type')
+                    ->pluck('count', 'type')
+                    ->all(),
+            ],
+            'processing' => [
+                'last_hour' => DB::table($this->messagesTable)
+                    ->where('processed_at', '>=', $since1h)
+                    ->count(),
+                'last_24h' => DB::table($this->messagesTable)
+                    ->where('processed_at', '>=', $since24h)
+                    ->count(),
+            ],
+            'failures' => [
+                'total' => DB::table($this->messagesTable)
+                    ->where('status', 'failed')
+                    ->count(),
+                'dead_letter' => DB::table($this->deadLetterTable)->count(),
+            ],
+        ];
+    }
+
+    private function determineHealthStatus(array $statusCounts, ?string $oldestPending, int $stuckProcessing): string
+    {
+        if ($stuckProcessing > 0) {
+            return 'critical';
+        }
+
+        $threshold = (int) $this->config->get('outbox.health.pending_age_warning_seconds', 3600);
+        if ($oldestPending && Carbon::now()->subSeconds($threshold)->gt($oldestPending)) {
+            return 'warning';
+        }
+
+        $maxPending = (int) $this->config->get('outbox.health.pending_count_warning', 1000);
+        if (($statusCounts['pending'] ?? 0) > $maxPending) {
+            return 'warning';
+        }
+
+        return 'healthy';
     }
 }

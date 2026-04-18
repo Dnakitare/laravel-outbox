@@ -3,45 +3,85 @@
 namespace Laravel\Outbox;
 
 use Laravel\Outbox\Contracts\OutboxMessage as OutboxMessageContract;
+use Laravel\Outbox\Support\PayloadSerializer;
 
 class DatabaseOutboxMessage implements OutboxMessageContract
 {
     public function __construct(
-        private object $message
+        protected object $row,
+        protected PayloadSerializer $serializer,
     ) {}
 
     public function getId(): string
     {
-        return $this->message->id;
+        return $this->row->id;
     }
 
     public function getTransactionId(): string
     {
-        return $this->message->transaction_id;
+        return $this->row->transaction_id;
     }
 
     public function getCorrelationId(): string
     {
-        return $this->message->correlation_id;
+        return $this->row->correlation_id;
     }
 
     public function getType(): string
     {
-        return $this->message->type;
+        return $this->row->type;
+    }
+
+    public function getAggregateType(): string
+    {
+        return $this->row->aggregate_type;
+    }
+
+    public function getAggregateId(): string
+    {
+        return $this->row->aggregate_id;
+    }
+
+    public function getMessageType(): string
+    {
+        return $this->row->message_type;
     }
 
     public function getPayload(): mixed
     {
-        return unserialize($this->message->payload);
+        return $this->serializer->unserialize($this->row->payload);
+    }
+
+    public function getRawPayload(): string
+    {
+        return $this->row->payload;
     }
 
     public function getStatus(): string
     {
-        return $this->message->status;
+        return $this->row->status;
     }
 
     public function getAttempts(): int
     {
-        return $this->message->attempts;
+        return (int) $this->row->attempts;
+    }
+
+    public function getSequenceNumber(): int
+    {
+        return (int) $this->row->sequence_number;
+    }
+
+    public function getHistory(): array
+    {
+        $history = $this->row->history ?? null;
+
+        if ($history === null || $history === '') {
+            return [];
+        }
+
+        $decoded = json_decode($history, true);
+
+        return is_array($decoded) ? $decoded : [];
     }
 }

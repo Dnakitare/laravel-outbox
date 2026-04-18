@@ -6,148 +6,150 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Laravel\Outbox\Contracts\MetricsCollector;
 use Laravel\Outbox\Contracts\OutboxRepository;
-use Laravel\Outbox\DatabaseOutboxRepository;
+use Laravel\Outbox\Events\MessageFailed;
+use Laravel\Outbox\Events\MessageProcessed;
+use Laravel\Outbox\Events\MessagesStored;
 use Laravel\Outbox\Jobs\ProcessOutboxMessages;
-use Laravel\Outbox\Metrics\NullMetricsCollector;
 use Laravel\Outbox\OutboxService;
 use Laravel\Outbox\Tests\Stubs\TestFailingEvent;
 use Laravel\Outbox\Tests\Stubs\TestOrderCreated;
-use Laravel\Outbox\Tests\Stubs\TestOutboxMessage;
 use Laravel\Outbox\Tests\TestCase;
 
 class OutboxProcessingTest extends TestCase
 {
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        // Run migrations
-        $this->loadLaravelMigrations();
-        $this->loadMigrationsFrom(__DIR__.'/../../database/migrations');
-
-        // Bind necessary services
-        $this->app->singleton(MetricsCollector::class, NullMetricsCollector::class);
-        $this->app->singleton(OutboxRepository::class, function ($app) {
-            return new DatabaseOutboxRepository($app['db']->connection());
-        });
-    }
-
     public function test_complete_outbox_flow(): void
     {
-        // Arrange
-        Event::fake();
+        Event::fake([MessagesStored::class]);
 
-        // Act
         app(OutboxService::class)->transaction('Order', '123', function () {
             event(new TestOrderCreated('123'));
         });
 
-        // Assert
         $message = DB::table('outbox_messages')->first();
         $this->assertNotNull($message);
-        $this->assertEquals('event', $message->type);
-        $this->assertEquals('Order', $message->aggregate_type);
-        $this->assertEquals('123', $message->aggregate_id);
-        $this->assertEquals('pending', $message->status);
+        $this->assertSame('event', $message->type);
+        $this->assertSame('Order', $message->aggregate_type);
+        $this->assertSame('123', $message->aggregate_id);
+        $this->assertSame('pending', $message->status);
+        $this->assertNotEmpty($message->payload_hash);
+
+        Event::assertDispatched(MessagesStored::class, function ($e) {
+            return $e->count === 1;
+        });
     }
 
-    public function test_dead_letter_handling(): void
+    public function test_processor_dispatches_event_and_marks_complete(): void
     {
-        // Arrange
-        Event::fake();
+        app(OutboxService::class)->transaction('Order', '1', function () {
+            event(new TestOrderCreated('1'));
+        });
 
-        // Act
-        app(OutboxService::class)->transaction('Order', '123', function () {
+        Event::fake([TestOrderCreated::class, MessageProcessed::class]);
+
+        $processed = $this->runProcessor();
+
+        $this->assertSame(1, $processed);
+        $this->assertSame(
+            1,
+            DB::table('outbox_messages')->where('status', 'completed')->count()
+        );
+        Event::assertDispatched(TestOrderCreated::class);
+        Event::assertDispatched(MessageProcessed::class);
+    }
+
+    public function test_failure_schedules_retry_with_backoff_then_dead_letters(): void
+    {
+        app(OutboxService::class)->transaction('Order', '2', function () {
             event(new TestFailingEvent);
         });
 
-        // Process message multiple times to hit max attempts
-        $maxAttempts = config('outbox.processing.max_attempts', 3);
-        for ($i = 0; $i < $maxAttempts; $i++) {
-            $message = DB::table('outbox_messages')
-                ->where('status', 'pending')
-                ->first();
+        // Make the real dispatcher propagate the listener failure.
+        Event::listen(TestFailingEvent::class, function ($e) {
+            throw new \RuntimeException('listener failure');
+        });
 
-            if ($message) {
-                DB::table('outbox_messages')
-                    ->where('id', $message->id)
-                    ->update([
-                        'attempts' => $maxAttempts,
-                        'status' => 'failed',
-                    ]);
+        Event::fake([MessageFailed::class]);
 
-                app(OutboxRepository::class)->moveToDeadLetter(
-                    new TestOutboxMessage($message),
-                    new \Exception('Test failure')
-                );
-            }
+        $max = (int) config('outbox.processing.max_attempts');
+        $messageId = DB::table('outbox_messages')->value('id');
+
+        for ($i = 1; $i <= $max; $i++) {
+            // Reset available_at to now so claim picks the row up again.
+            DB::table('outbox_messages')
+                ->where('id', $messageId)
+                ->update(['available_at' => now()->subSecond()]);
+
+            $this->runProcessor();
         }
 
-        // Assert
-        $this->assertDatabaseHas('outbox_dead_letter', [
-            'aggregate_type' => 'Order',
-            'aggregate_id' => '123',
-        ]);
+        $finalRow = DB::table('outbox_messages')->where('id', $messageId)->first();
+        $this->assertSame('failed', $finalRow->status);
+        $this->assertSame($max, (int) $finalRow->attempts);
+
+        $this->assertSame(1, DB::table('outbox_dead_letter')->count());
+        $dlRow = DB::table('outbox_dead_letter')->first();
+        $this->assertSame('Order', $dlRow->aggregate_type);
+        $this->assertSame('2', $dlRow->aggregate_id);
+
+        Event::assertDispatched(MessageFailed::class);
     }
 
-    public function test_batch_processing(): void
+    public function test_batch_processing_respects_limit(): void
     {
-        // Arrange
-        Event::fake();
         $service = app(OutboxService::class);
 
-        // Create test messages
         for ($i = 0; $i < 5; $i++) {
             $service->transaction('Order', "order-{$i}", function () use ($i) {
                 event(new TestOrderCreated("order-{$i}"));
             });
         }
 
-        // Initial assertions
-        $this->assertEquals(5, DB::table('outbox_messages')
-            ->where('status', 'pending')
-            ->count(), 'Should start with 5 pending messages');
+        Event::fake([TestOrderCreated::class]);
 
-        // Process first batch
-        $job = new ProcessOutboxMessages(2);
-        $processedCount = $job->handle(
-            app(OutboxRepository::class),
-            app(MetricsCollector::class)
-        );
+        $this->assertSame(5, DB::table('outbox_messages')->where('status', 'pending')->count());
 
-        $this->assertEquals(2, $processedCount, 'Should have processed 2 messages in first batch');
+        $this->assertSame(2, $this->runProcessor(2));
+        $this->assertSame(3, DB::table('outbox_messages')->where('status', 'pending')->count());
+        $this->assertSame(2, DB::table('outbox_messages')->where('status', 'completed')->count());
 
-        // Assert after first batch
-        $this->assertEquals(3, DB::table('outbox_messages')
-            ->where('status', 'pending')
-            ->count(), 'Should have 3 pending messages after first batch');
-
-        $this->assertEquals(2, DB::table('outbox_messages')
-            ->where('status', 'completed')
-            ->count(), 'Should have 2 completed messages after first batch');
-
-        // Process second batch
-        $processedCount = $job->handle(
-            app(OutboxRepository::class),
-            app(MetricsCollector::class)
-        );
-
-        $this->assertEquals(2, $processedCount, 'Should have processed 2 messages in second batch');
-
-        // Final assertions
-        $this->assertEquals(1, DB::table('outbox_messages')
-            ->where('status', 'pending')
-            ->count(), 'Should have 1 pending message after second batch');
-
-        $this->assertEquals(4, DB::table('outbox_messages')
-            ->where('status', 'completed')
-            ->count(), 'Should have 4 completed messages after second batch');
+        $this->assertSame(2, $this->runProcessor(2));
+        $this->assertSame(1, DB::table('outbox_messages')->where('status', 'pending')->count());
+        $this->assertSame(4, DB::table('outbox_messages')->where('status', 'completed')->count());
     }
 
-    protected function tearDown(): void
+    public function test_payload_integrity_failure_sends_to_dead_letter(): void
     {
-        DB::table('outbox_messages')->delete();
-        DB::table('outbox_dead_letter')->delete();
-        parent::tearDown();
+        app(OutboxService::class)->transaction('Order', '9', function () {
+            event(new TestOrderCreated('9'));
+        });
+
+        // Tamper with the stored payload — flip one byte of the body.
+        $id = DB::table('outbox_messages')->value('id');
+        $payload = DB::table('outbox_messages')->where('id', $id)->value('payload');
+        DB::table('outbox_messages')->where('id', $id)->update([
+            'payload' => $payload.'X',
+        ]);
+
+        $max = (int) config('outbox.processing.max_attempts');
+        for ($i = 1; $i <= $max; $i++) {
+            DB::table('outbox_messages')->where('id', $id)->update(['available_at' => now()->subSecond()]);
+            $this->runProcessor();
+        }
+
+        $this->assertSame(1, DB::table('outbox_dead_letter')->count());
+        $this->assertSame('failed', DB::table('outbox_messages')->where('id', $id)->value('status'));
+    }
+
+    protected function runProcessor(int $batchSize = 100): int
+    {
+        $job = new ProcessOutboxMessages($batchSize);
+
+        return $job->handle(
+            $this->app->make(OutboxRepository::class),
+            $this->app->make(MetricsCollector::class),
+            $this->app['events'],
+            $this->app->make(\Illuminate\Contracts\Bus\Dispatcher::class),
+            $this->app['config'],
+        );
     }
 }

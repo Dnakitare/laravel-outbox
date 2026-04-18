@@ -4,66 +4,56 @@ namespace Laravel\Outbox\Console\Commands;
 
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
+use Laravel\Outbox\Contracts\OutboxRepository;
 
 class RetryFailedCommand extends Command
 {
     protected $signature = 'outbox:retry
                           {--id=* : IDs of specific messages to retry}
                           {--all : Retry all failed messages}
-                          {--batch=100 : Messages to retry per batch}
+                          {--purge-history : Discard the message history instead of preserving it}
                           {--force : Skip confirmation}';
 
-    protected $description = 'Retry failed outbox messages';
+    protected $description = 'Reset failed outbox messages back to pending for re-processing';
 
-    public function handle(): int
+    public function handle(OutboxRepository $repository): int
     {
-        if (! $this->option('id') && ! $this->option('all')) {
-            $this->error('Please specify message IDs to retry or use --all');
+        $ids = $this->option('id');
+        $all = $this->option('all');
+
+        if (empty($ids) && ! $all) {
+            $this->error('Specify --id=<uuid> (repeatable) or --all.');
 
             return 1;
         }
 
-        if (! $this->option('force') && ! $this->confirm('Are you sure you want to retry these messages?')) {
-            return 1;
-        }
+        $table = config('outbox.table.messages', 'outbox_messages');
+        $query = DB::table($table)->where('status', 'failed');
 
-        $query = DB::table(config('outbox.table.messages', 'outbox_messages'))
-            ->where('status', 'failed');
-
-        // If specific IDs were provided, only retry those
-        if ($ids = $this->option('id')) {
+        if (! empty($ids)) {
             $query->whereIn('id', $ids);
         }
 
-        $total = $query->count();
+        $count = $query->count();
 
-        if ($total === 0) {
-            $this->info('No failed messages found to retry');
+        if ($count === 0) {
+            $this->info('No failed messages found to retry.');
 
             return 0;
         }
 
-        $this->info("Retrying {$total} failed messages...");
+        if (! $this->option('force') && ! $this->confirm("Retry {$count} failed message(s)?")) {
+            $this->warn('Aborted.');
 
-        $batchSize = (int) $this->option('batch');
-        $retried = 0;
+            return 1;
+        }
 
-        do {
-            $count = $query->limit($batchSize)
-                ->update([
-                    'status' => 'pending',
-                    'attempts' => 0,
-                    'error' => null,
-                    'processing_started_at' => null,
-                    'updated_at' => now(),
-                ]);
+        $reset = $repository->resetFailed(
+            ids: ! empty($ids) ? $ids : null,
+            preserveHistory: ! $this->option('purge-history'),
+        );
 
-            $retried += $count;
-            $this->output->write('.');
-        } while ($count > 0);
-
-        $this->output->writeln('');
-        $this->info("Successfully reset {$retried} messages for retry");
+        $this->info("Reset {$reset} message(s) for retry.");
 
         return 0;
     }

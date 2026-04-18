@@ -3,59 +3,79 @@
 namespace Laravel\Outbox\Console\Commands;
 
 use Illuminate\Console\Command;
+use Illuminate\Contracts\Bus\Dispatcher as BusDispatcher;
+use Illuminate\Contracts\Config\Repository as Config;
+use Illuminate\Contracts\Events\Dispatcher;
+use Laravel\Outbox\Contracts\MetricsCollector;
+use Laravel\Outbox\Contracts\OutboxRepository;
 use Laravel\Outbox\Jobs\ProcessOutboxMessages;
 
 class ProcessOutboxCommand extends Command
 {
     protected $signature = 'outbox:process
-                          {--batch=100 : Number of messages to process in each batch}
-                          {--sleep=1 : Seconds to sleep between batches}
-                          {--max=0 : Maximum number of messages to process (0 for unlimited)}
-                          {--loop : Keep processing in a loop}';
+                          {--batch=100 : Number of messages to process per iteration}
+                          {--sleep=1 : Seconds to sleep when no messages are pending}
+                          {--max=0 : Stop after processing this many messages (0 = unlimited)}
+                          {--once : Run one batch and exit}';
 
     protected $description = 'Process pending outbox messages';
 
-    public function handle(): int
-    {
-        $batchSize = (int) $this->option('batch');
-        $sleep = (int) $this->option('sleep');
-        $maxMessages = (int) $this->option('max');
-        $loop = (bool) $this->option('loop');
+    protected bool $shouldStop = false;
 
-        $totalProcessed = 0;
+    public function handle(
+        OutboxRepository $repository,
+        MetricsCollector $metrics,
+        Dispatcher $events,
+        BusDispatcher $bus,
+        Config $config,
+    ): int {
+        $this->installSignalHandlers();
 
-        do {
-            $job = new ProcessOutboxMessages($batchSize);
-            $processed = $job->handle(
-                app('Laravel\Outbox\Contracts\OutboxRepository'),
-                app('Laravel\Outbox\Contracts\MetricsCollector')
-            );
+        $batch = max(1, (int) $this->option('batch'));
+        $sleep = max(0, (int) $this->option('sleep'));
+        $max = max(0, (int) $this->option('max'));
+        $once = (bool) $this->option('once');
+
+        $total = 0;
+
+        while (! $this->shouldStop) {
+            $job = new ProcessOutboxMessages($batch);
+            $processed = $job->handle($repository, $metrics, $events, $bus, $config);
 
             if ($processed > 0) {
-                $totalProcessed += $processed;
-                $this->info("Processed {$processed} messages (Total: {$totalProcessed})");
+                $total += $processed;
+                $this->info("Processed {$processed} (total: {$total})");
             }
 
-            // Check if we've hit the max messages limit
-            if ($maxMessages > 0 && $totalProcessed >= $maxMessages) {
-                $this->info('Reached maximum message limit');
+            if ($max > 0 && $total >= $max) {
+                $this->info('Reached --max limit.');
                 break;
             }
 
-            // If there were no messages processed and we're not looping, exit
-            if ($processed === 0 && ! $loop) {
+            if ($once) {
                 break;
             }
 
-            // Sleep between batches if specified
-            if ($sleep > 0 && ($loop || $processed === $batchSize)) {
-                sleep($sleep);
+            if ($processed === 0) {
+                if ($sleep > 0 && ! $this->shouldStop) {
+                    sleep($sleep);
+                }
             }
+        }
 
-        } while ($loop);
-
-        $this->info("Finished processing {$totalProcessed} messages");
+        $this->info("Finished. Processed {$total} message(s).");
 
         return 0;
+    }
+
+    protected function installSignalHandlers(): void
+    {
+        if (! function_exists('pcntl_signal')) {
+            return;
+        }
+
+        pcntl_async_signals(true);
+        pcntl_signal(SIGINT, fn () => $this->shouldStop = true);
+        pcntl_signal(SIGTERM, fn () => $this->shouldStop = true);
     }
 }

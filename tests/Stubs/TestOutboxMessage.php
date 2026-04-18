@@ -6,7 +6,7 @@ use Laravel\Outbox\Contracts\OutboxMessage;
 
 class TestOutboxMessage implements OutboxMessage
 {
-    public function __construct(protected $message) {}
+    public function __construct(protected object $message) {}
 
     public function getId(): string
     {
@@ -28,9 +28,31 @@ class TestOutboxMessage implements OutboxMessage
         return $this->message->type;
     }
 
+    public function getAggregateType(): string
+    {
+        return $this->message->aggregate_type;
+    }
+
+    public function getAggregateId(): string
+    {
+        return $this->message->aggregate_id;
+    }
+
+    public function getMessageType(): string
+    {
+        return $this->message->message_type;
+    }
+
     public function getPayload(): mixed
     {
         return $this->message->payload;
+    }
+
+    public function getRawPayload(): string
+    {
+        return is_string($this->message->payload)
+            ? $this->message->payload
+            : (string) $this->message->payload;
     }
 
     public function getStatus(): string
@@ -40,16 +62,23 @@ class TestOutboxMessage implements OutboxMessage
 
     public function getAttempts(): int
     {
-        return $this->message->attempts;
+        return (int) $this->message->attempts;
     }
 
-    public function getAggregateType(): string
+    public function getSequenceNumber(): int
     {
-        return $this->message->aggregate_type;
+        return (int) ($this->message->sequence_number ?? 0);
     }
 
-    public function getAggregateId(): string
+    public function getHistory(): array
     {
-        return $this->message->aggregate_id;
+        $history = $this->message->history ?? null;
+        if (is_string($history) && $history !== '') {
+            $decoded = json_decode($history, true);
+
+            return is_array($decoded) ? $decoded : [];
+        }
+
+        return is_array($history) ? $history : [];
     }
 }
