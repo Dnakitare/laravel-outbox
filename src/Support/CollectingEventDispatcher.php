@@ -1,9 +1,9 @@
 <?php
 
-namespace Laravel\Outbox\Support;
+namespace Dnakitare\Outbox\Support;
 
 use Illuminate\Contracts\Events\Dispatcher;
-use Laravel\Outbox\OutboxService;
+use Dnakitare\Outbox\OutboxService;
 
 /**
  * Intercepts events dispatched during an outbox transaction and routes

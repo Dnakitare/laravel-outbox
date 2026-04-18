@@ -1,8 +1,8 @@
 <?php
 
-namespace Laravel\Outbox\Tests\Stubs;
+namespace Dnakitare\Outbox\Tests\Stubs;
 
-use Laravel\Outbox\Contracts\OutboxMessage;
+use Dnakitare\Outbox\Contracts\OutboxMessage;
 
 class TestOutboxMessage implements OutboxMessage
 {

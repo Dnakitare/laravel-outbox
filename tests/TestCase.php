@@ -1,9 +1,9 @@
 <?php
 
-namespace Laravel\Outbox\Tests;
+namespace Dnakitare\Outbox\Tests;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Laravel\Outbox\OutboxServiceProvider;
+use Dnakitare\Outbox\OutboxServiceProvider;
 use Orchestra\Testbench\TestCase as Orchestra;
 
 class TestCase extends Orchestra
@@ -39,11 +39,11 @@ class TestCase extends Orchestra
 
         // Permit the test stub classes to rehydrate.
         $app['config']->set('outbox.serialization.allowed_classes', [
-            \Laravel\Outbox\Tests\Stubs\TestEvent::class,
-            \Laravel\Outbox\Tests\Stubs\TestJob::class,
-            \Laravel\Outbox\Tests\Stubs\TestOrderCreated::class,
-            \Laravel\Outbox\Tests\Stubs\TestFailingEvent::class,
-            \Laravel\Outbox\Tests\Stubs\TestDeadOnWakeupJob::class,
+            \Dnakitare\Outbox\Tests\Stubs\TestEvent::class,
+            \Dnakitare\Outbox\Tests\Stubs\TestJob::class,
+            \Dnakitare\Outbox\Tests\Stubs\TestOrderCreated::class,
+            \Dnakitare\Outbox\Tests\Stubs\TestFailingEvent::class,
+            \Dnakitare\Outbox\Tests\Stubs\TestDeadOnWakeupJob::class,
         ]);
     }
 }

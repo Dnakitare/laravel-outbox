@@ -1,8 +1,8 @@
 <?php
 
-namespace Laravel\Outbox\Events;
+namespace Dnakitare\Outbox\Events;
 
-use Laravel\Outbox\Contracts\OutboxMessage;
+use Dnakitare\Outbox\Contracts\OutboxMessage;
 
 class MessageProcessed
 {

@@ -1,11 +1,11 @@
 <?php
 
-namespace Laravel\Outbox\Tests\Unit;
+namespace Dnakitare\Outbox\Tests\Unit;
 
-use Laravel\Outbox\Exceptions\SerializationException;
-use Laravel\Outbox\Support\PayloadSerializer;
-use Laravel\Outbox\Tests\Stubs\TestEvent;
-use Laravel\Outbox\Tests\TestCase;
+use Dnakitare\Outbox\Exceptions\SerializationException;
+use Dnakitare\Outbox\Support\PayloadSerializer;
+use Dnakitare\Outbox\Tests\Stubs\TestEvent;
+use Dnakitare\Outbox\Tests\TestCase;
 
 class PayloadSerializerTest extends TestCase
 {

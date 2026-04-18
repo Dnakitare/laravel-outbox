@@ -1,12 +1,12 @@
 <?php
 
-namespace Laravel\Outbox\Debug;
+namespace Dnakitare\Outbox\Debug;
 
 use Illuminate\Contracts\Config\Repository as Config;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
-use Laravel\Outbox\Exceptions\SerializationException;
-use Laravel\Outbox\Support\PayloadSerializer;
+use Dnakitare\Outbox\Exceptions\SerializationException;
+use Dnakitare\Outbox\Support\PayloadSerializer;
 
 class OutboxDebugger
 {

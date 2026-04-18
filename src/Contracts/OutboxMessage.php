@@ -1,6 +1,6 @@
 <?php
 
-namespace Laravel\Outbox\Contracts;
+namespace Dnakitare\Outbox\Contracts;
 
 interface OutboxMessage
 {

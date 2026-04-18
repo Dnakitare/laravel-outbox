@@ -1,6 +1,6 @@
 <?php
 
-namespace Laravel\Outbox\Tests\Stubs;
+namespace Dnakitare\Outbox\Tests\Stubs;
 
 class TestEvent
 {

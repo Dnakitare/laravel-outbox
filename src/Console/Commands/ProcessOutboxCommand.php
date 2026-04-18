@@ -1,14 +1,14 @@
 <?php
 
-namespace Laravel\Outbox\Console\Commands;
+namespace Dnakitare\Outbox\Console\Commands;
 
 use Illuminate\Console\Command;
 use Illuminate\Contracts\Bus\Dispatcher as BusDispatcher;
 use Illuminate\Contracts\Config\Repository as Config;
 use Illuminate\Contracts\Events\Dispatcher;
-use Laravel\Outbox\Contracts\MetricsCollector;
-use Laravel\Outbox\Contracts\OutboxRepository;
-use Laravel\Outbox\Jobs\ProcessOutboxMessages;
+use Dnakitare\Outbox\Contracts\MetricsCollector;
+use Dnakitare\Outbox\Contracts\OutboxRepository;
+use Dnakitare\Outbox\Jobs\ProcessOutboxMessages;
 
 class ProcessOutboxCommand extends Command
 {

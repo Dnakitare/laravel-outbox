@@ -1,17 +1,17 @@
 <?php
 
-namespace Laravel\Outbox;
+namespace Dnakitare\Outbox;
 
 use Illuminate\Contracts\Config\Repository as Config;
 use Illuminate\Support\ServiceProvider;
-use Laravel\Outbox\Console\Commands\InspectDeadLetterCommand;
-use Laravel\Outbox\Console\Commands\ProcessOutboxCommand;
-use Laravel\Outbox\Console\Commands\PruneOutboxCommand;
-use Laravel\Outbox\Console\Commands\RetryFailedCommand;
-use Laravel\Outbox\Contracts\MetricsCollector;
-use Laravel\Outbox\Contracts\OutboxRepository;
-use Laravel\Outbox\Metrics\NullMetricsCollector;
-use Laravel\Outbox\Support\PayloadSerializer;
+use Dnakitare\Outbox\Console\Commands\InspectDeadLetterCommand;
+use Dnakitare\Outbox\Console\Commands\ProcessOutboxCommand;
+use Dnakitare\Outbox\Console\Commands\PruneOutboxCommand;
+use Dnakitare\Outbox\Console\Commands\RetryFailedCommand;
+use Dnakitare\Outbox\Contracts\MetricsCollector;
+use Dnakitare\Outbox\Contracts\OutboxRepository;
+use Dnakitare\Outbox\Metrics\NullMetricsCollector;
+use Dnakitare\Outbox\Support\PayloadSerializer;
 
 class OutboxServiceProvider extends ServiceProvider
 {

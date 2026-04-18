@@ -1,20 +1,20 @@
 <?php
 
-namespace Laravel\Outbox\Tests\Feature;
+namespace Dnakitare\Outbox\Tests\Feature;
 
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
-use Laravel\Outbox\Contracts\MetricsCollector;
-use Laravel\Outbox\Contracts\OutboxRepository;
-use Laravel\Outbox\Events\MessageFailed;
-use Laravel\Outbox\Events\MessageProcessed;
-use Laravel\Outbox\Events\MessagesStored;
-use Laravel\Outbox\Jobs\ProcessOutboxMessages;
-use Laravel\Outbox\OutboxService;
-use Laravel\Outbox\Tests\Stubs\TestDeadOnWakeupJob;
-use Laravel\Outbox\Tests\Stubs\TestFailingEvent;
-use Laravel\Outbox\Tests\Stubs\TestOrderCreated;
-use Laravel\Outbox\Tests\TestCase;
+use Dnakitare\Outbox\Contracts\MetricsCollector;
+use Dnakitare\Outbox\Contracts\OutboxRepository;
+use Dnakitare\Outbox\Events\MessageFailed;
+use Dnakitare\Outbox\Events\MessageProcessed;
+use Dnakitare\Outbox\Events\MessagesStored;
+use Dnakitare\Outbox\Jobs\ProcessOutboxMessages;
+use Dnakitare\Outbox\OutboxService;
+use Dnakitare\Outbox\Tests\Stubs\TestDeadOnWakeupJob;
+use Dnakitare\Outbox\Tests\Stubs\TestFailingEvent;
+use Dnakitare\Outbox\Tests\Stubs\TestOrderCreated;
+use Dnakitare\Outbox\Tests\TestCase;
 
 class OutboxProcessingTest extends TestCase
 {

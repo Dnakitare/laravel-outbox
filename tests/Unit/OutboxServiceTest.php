@@ -1,15 +1,15 @@
 <?php
 
-namespace Laravel\Outbox\Tests\Unit;
+namespace Dnakitare\Outbox\Tests\Unit;
 
-use Laravel\Outbox\Contracts\MetricsCollector;
-use Laravel\Outbox\Contracts\OutboxRepository;
-use Laravel\Outbox\Exceptions\TransactionException;
-use Laravel\Outbox\OutboxService;
-use Laravel\Outbox\Support\PayloadSerializer;
-use Laravel\Outbox\Tests\Stubs\TestEvent;
-use Laravel\Outbox\Tests\Stubs\TestJob;
-use Laravel\Outbox\Tests\TestCase;
+use Dnakitare\Outbox\Contracts\MetricsCollector;
+use Dnakitare\Outbox\Contracts\OutboxRepository;
+use Dnakitare\Outbox\Exceptions\TransactionException;
+use Dnakitare\Outbox\OutboxService;
+use Dnakitare\Outbox\Support\PayloadSerializer;
+use Dnakitare\Outbox\Tests\Stubs\TestEvent;
+use Dnakitare\Outbox\Tests\Stubs\TestJob;
+use Dnakitare\Outbox\Tests\TestCase;
 use Mockery;
 use Mockery\MockInterface;
 

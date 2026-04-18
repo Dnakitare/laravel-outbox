@@ -1,6 +1,6 @@
 <?php
 
-namespace Laravel\Outbox\Facades;
+namespace Dnakitare\Outbox\Facades;
 
 use Illuminate\Support\Facades\Facade;
 
@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\Facade;
  * @method static array health()
  * @method static array getStats()
  *
- * @see \Laravel\Outbox\OutboxService
+ * @see \Dnakitare\Outbox\OutboxService
  */
 class Outbox extends Facade
 {

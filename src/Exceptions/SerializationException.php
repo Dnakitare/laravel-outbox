@@ -1,5 +1,5 @@
 <?php
 
-namespace Laravel\Outbox\Exceptions;
+namespace Dnakitare\Outbox\Exceptions;
 
 class SerializationException extends OutboxException {}

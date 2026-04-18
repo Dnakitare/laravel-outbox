@@ -1,8 +1,8 @@
 <?php
 
-namespace Laravel\Outbox\Metrics;
+namespace Dnakitare\Outbox\Metrics;
 
-use Laravel\Outbox\Contracts\MetricsCollector;
+use Dnakitare\Outbox\Contracts\MetricsCollector;
 
 class NullMetricsCollector implements MetricsCollector
 {

@@ -1,6 +1,6 @@
 <?php
 
-namespace Laravel\Outbox\Jobs;
+namespace Dnakitare\Outbox\Jobs;
 
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Bus\Dispatcher as BusDispatcher;
@@ -11,13 +11,13 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
-use Laravel\Outbox\Contracts\MetricsCollector;
-use Laravel\Outbox\Contracts\OutboxMessage;
-use Laravel\Outbox\Contracts\OutboxRepository;
-use Laravel\Outbox\Events\MessageFailed;
-use Laravel\Outbox\Events\MessageProcessed;
-use Laravel\Outbox\Exceptions\SerializationException;
-use Laravel\Outbox\Support\BackoffStrategy;
+use Dnakitare\Outbox\Contracts\MetricsCollector;
+use Dnakitare\Outbox\Contracts\OutboxMessage;
+use Dnakitare\Outbox\Contracts\OutboxRepository;
+use Dnakitare\Outbox\Events\MessageFailed;
+use Dnakitare\Outbox\Events\MessageProcessed;
+use Dnakitare\Outbox\Exceptions\SerializationException;
+use Dnakitare\Outbox\Support\BackoffStrategy;
 use Throwable;
 
 class ProcessOutboxMessages implements ShouldQueue

@@ -1,13 +1,13 @@
 <?php
 
-namespace Laravel\Outbox;
+namespace Dnakitare\Outbox;
 
 use Illuminate\Contracts\Config\Repository as Config;
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Support\Str;
-use Laravel\Outbox\Contracts\OutboxMessage;
-use Laravel\Outbox\Contracts\OutboxRepository;
-use Laravel\Outbox\Support\PayloadSerializer;
+use Dnakitare\Outbox\Contracts\OutboxMessage;
+use Dnakitare\Outbox\Contracts\OutboxRepository;
+use Dnakitare\Outbox\Support\PayloadSerializer;
 use Throwable;
 
 class DatabaseOutboxRepository implements OutboxRepository

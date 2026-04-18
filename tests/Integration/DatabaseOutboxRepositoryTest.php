@@ -1,13 +1,13 @@
 <?php
 
-namespace Laravel\Outbox\Tests\Integration;
+namespace Dnakitare\Outbox\Tests\Integration;
 
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
-use Laravel\Outbox\DatabaseOutboxRepository;
-use Laravel\Outbox\Support\PayloadSerializer;
-use Laravel\Outbox\Tests\Stubs\TestOrderCreated;
-use Laravel\Outbox\Tests\TestCase;
+use Dnakitare\Outbox\DatabaseOutboxRepository;
+use Dnakitare\Outbox\Support\PayloadSerializer;
+use Dnakitare\Outbox\Tests\Stubs\TestOrderCreated;
+use Dnakitare\Outbox\Tests\TestCase;
 
 class DatabaseOutboxRepositoryTest extends TestCase
 {

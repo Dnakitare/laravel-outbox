@@ -1,9 +1,9 @@
 <?php
 
-namespace Laravel\Outbox\Support;
+namespace Dnakitare\Outbox\Support;
 
 use Illuminate\Queue\QueueManager;
-use Laravel\Outbox\OutboxService;
+use Dnakitare\Outbox\OutboxService;
 
 /**
  * During an outbox transaction, replaces the 'queue' container binding

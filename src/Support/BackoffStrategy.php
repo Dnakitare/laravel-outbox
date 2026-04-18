@@ -1,6 +1,6 @@
 <?php
 
-namespace Laravel\Outbox\Support;
+namespace Dnakitare\Outbox\Support;
 
 use Illuminate\Support\Carbon;
 

@@ -1,6 +1,6 @@
 <?php
 
-namespace Laravel\Outbox\Events;
+namespace Dnakitare\Outbox\Events;
 
 /**
  * Fired after an outbox transaction commits, exposing the transaction

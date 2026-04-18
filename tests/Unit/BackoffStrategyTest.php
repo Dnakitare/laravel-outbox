@@ -1,9 +1,9 @@
 <?php
 
-namespace Laravel\Outbox\Tests\Unit;
+namespace Dnakitare\Outbox\Tests\Unit;
 
-use Laravel\Outbox\Support\BackoffStrategy;
-use Laravel\Outbox\Tests\TestCase;
+use Dnakitare\Outbox\Support\BackoffStrategy;
+use Dnakitare\Outbox\Tests\TestCase;
 
 class BackoffStrategyTest extends TestCase
 {

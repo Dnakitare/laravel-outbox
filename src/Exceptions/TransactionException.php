@@ -1,6 +1,6 @@
 <?php
 
-namespace Laravel\Outbox\Exceptions;
+namespace Dnakitare\Outbox\Exceptions;
 
 use RuntimeException;
 

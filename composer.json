@@ -1,60 +1,67 @@
 {
-    "name": "laravel/outbox",
-    "description": "A robust implementation of the Transactional Outbox Pattern for Laravel applications",
+    "name": "dnakitare/laravel-outbox",
+    "description": "Transactional outbox pattern for Laravel — events and jobs persisted atomically with your business writes, then replayed reliably with backoff and dead-letter.",
     "type": "library",
     "license": "MIT",
     "keywords": [
         "laravel",
         "outbox",
-        "pattern",
+        "transactional-outbox",
         "events",
-        "transactions",
-        "microservices"
+        "jobs",
+        "reliability",
+        "microservices",
+        "distributed-systems"
     ],
     "require": {
         "php": "^8.1",
-        "illuminate/support": "^10.0|^11.0",
-        "illuminate/database": "^10.0|^11.0",
-        "illuminate/console": "^10.0|^11.0",
-        "illuminate/contracts": "^10.0|^11.0"
+        "illuminate/support": "^10.0|^11.0|^12.0",
+        "illuminate/database": "^10.0|^11.0|^12.0",
+        "illuminate/console": "^10.0|^11.0|^12.0",
+        "illuminate/contracts": "^10.0|^11.0|^12.0"
     },
     "require-dev": {
+        "friendsofphp/php-cs-fixer": "^3.49",
         "laravel/pint": "^1.13",
-        "orchestra/testbench": "^9.0",
-        "orchestra/testbench-core": "^9.0",
-        "orchestra/workbench": "^9.0",
-        "phpunit/phpunit": "^10.0",
-        "phpstan/phpstan": "^1.0",
-        "nunomaduro/larastan": "^2.0",
         "mockery/mockery": "^1.6",
-        "pestphp/pest": "^2.0",
-        "pestphp/pest-plugin-laravel": "^2.0",
-        "friendsofphp/php-cs-fixer": "^3.49"
+        "nunomaduro/larastan": "^2.0|^3.0",
+        "orchestra/testbench": "^8.0|^9.0|^10.0",
+        "orchestra/workbench": "^8.0|^9.0|^10.0",
+        "pestphp/pest": "^2.0|^3.0",
+        "pestphp/pest-plugin-laravel": "^2.0|^3.0",
+        "phpstan/phpstan": "^1.0|^2.0",
+        "phpunit/phpunit": "^10.0|^11.0"
     },
     "autoload": {
         "psr-4": {
-            "Laravel\\Outbox\\": "src/"
+            "Dnakitare\\Outbox\\": "src/"
         }
     },
     "autoload-dev": {
         "psr-4": {
-            "Laravel\\Outbox\\Tests\\": "tests/",
-            "Laravel\\Outbox\\Tests\\Stubs\\": "tests/Stubs/"
+            "Dnakitare\\Outbox\\Tests\\": "tests/"
         }
     },
     "extra": {
         "laravel": {
             "providers": [
-                "Laravel\\Outbox\\OutboxServiceProvider"
-            ]
+                "Dnakitare\\Outbox\\OutboxServiceProvider"
+            ],
+            "aliases": {
+                "Outbox": "Dnakitare\\Outbox\\Facades\\Outbox"
+            }
         }
     },
     "scripts": {
-        "test": "vendor/bin/phpunit",
+        "test": "vendor/bin/pest",
+        "test-coverage": "vendor/bin/pest --coverage",
         "format": "vendor/bin/pint",
-        "analyse": "vendor/bin/phpstan analyse",
-        "post-autoload-dump": [
-            "@php ./vendor/bin/testbench package:discover --ansi"
+        "format-check": "vendor/bin/pint --test",
+        "analyse": "vendor/bin/phpstan analyse --memory-limit=1G",
+        "check": [
+            "@format-check",
+            "@analyse",
+            "@test"
         ]
     },
     "config": {
@@ -70,5 +77,9 @@
             "name": "Daniel Nakitare",
             "email": "dnakitare@gmail.com"
         }
-    ]
+    ],
+    "support": {
+        "issues": "https://github.com/dnakitare/laravel-outbox/issues",
+        "source": "https://github.com/dnakitare/laravel-outbox"
+    }
 }

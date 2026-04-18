@@ -1,12 +1,12 @@
 <?php
 
-namespace Laravel\Outbox\Console\Commands;
+namespace Dnakitare\Outbox\Console\Commands;
 
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
-use Laravel\Outbox\Exceptions\SerializationException;
-use Laravel\Outbox\Support\PayloadSerializer;
+use Dnakitare\Outbox\Exceptions\SerializationException;
+use Dnakitare\Outbox\Support\PayloadSerializer;
 
 class InspectDeadLetterCommand extends Command
 {

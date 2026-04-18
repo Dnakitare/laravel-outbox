@@ -1,9 +1,9 @@
 <?php
 
-namespace Laravel\Outbox\Support;
+namespace Dnakitare\Outbox\Support;
 
 use Illuminate\Contracts\Queue\Queue as QueueContract;
-use Laravel\Outbox\OutboxService;
+use Dnakitare\Outbox\OutboxService;
 
 /**
  * A Queue implementation that, instead of pushing jobs to a real queue

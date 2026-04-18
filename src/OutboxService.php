@@ -1,6 +1,6 @@
 <?php
 
-namespace Laravel\Outbox;
+namespace Dnakitare\Outbox;
 
 use Illuminate\Contracts\Config\Repository as Config;
 use Illuminate\Contracts\Container\Container;
@@ -9,13 +9,13 @@ use Illuminate\Queue\QueueManager;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
-use Laravel\Outbox\Contracts\MetricsCollector;
-use Laravel\Outbox\Contracts\OutboxRepository;
-use Laravel\Outbox\Events\MessagesStored;
-use Laravel\Outbox\Exceptions\TransactionException;
-use Laravel\Outbox\Support\CollectingEventDispatcher;
-use Laravel\Outbox\Support\CollectingQueueManager;
-use Laravel\Outbox\Support\PayloadSerializer;
+use Dnakitare\Outbox\Contracts\MetricsCollector;
+use Dnakitare\Outbox\Contracts\OutboxRepository;
+use Dnakitare\Outbox\Events\MessagesStored;
+use Dnakitare\Outbox\Exceptions\TransactionException;
+use Dnakitare\Outbox\Support\CollectingEventDispatcher;
+use Dnakitare\Outbox\Support\CollectingQueueManager;
+use Dnakitare\Outbox\Support\PayloadSerializer;
 
 class OutboxService
 {
@@ -229,7 +229,7 @@ class OutboxService
         }
 
         try {
-            $job = new \Laravel\Outbox\Jobs\ProcessOutboxMessages(
+            $job = new \Dnakitare\Outbox\Jobs\ProcessOutboxMessages(
                 batchSize: (int) $this->config->get('outbox.processing.batch_size', 100)
             );
 

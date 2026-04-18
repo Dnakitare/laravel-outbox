@@ -103,7 +103,7 @@ return [
     | Monitoring
     |--------------------------------------------------------------------------
     |
-    | Set metrics_collector to the FQCN of a Laravel\Outbox\Contracts\MetricsCollector
+    | Set metrics_collector to the FQCN of a Dnakitare\Outbox\Contracts\MetricsCollector
     | implementation, or leave null to use NullMetricsCollector.
     |
     */

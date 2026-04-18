@@ -1,10 +1,10 @@
 <?php
 
-namespace Laravel\Outbox\Console\Commands;
+namespace Dnakitare\Outbox\Console\Commands;
 
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
-use Laravel\Outbox\Contracts\OutboxRepository;
+use Dnakitare\Outbox\Contracts\OutboxRepository;
 
 class RetryFailedCommand extends Command
 {

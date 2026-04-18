@@ -1,6 +1,6 @@
 <?php
 
-namespace Laravel\Outbox\Console\Commands;
+namespace Dnakitare\Outbox\Console\Commands;
 
 use Carbon\Carbon;
 use Illuminate\Console\Command;

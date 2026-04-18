@@ -1,9 +1,9 @@
 <?php
 
-namespace Laravel\Outbox;
+namespace Dnakitare\Outbox;
 
-use Laravel\Outbox\Contracts\OutboxMessage as OutboxMessageContract;
-use Laravel\Outbox\Support\PayloadSerializer;
+use Dnakitare\Outbox\Contracts\OutboxMessage as OutboxMessageContract;
+use Dnakitare\Outbox\Support\PayloadSerializer;
 
 class DatabaseOutboxMessage implements OutboxMessageContract
 {

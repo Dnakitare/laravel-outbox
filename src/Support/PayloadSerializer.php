@@ -1,9 +1,9 @@
 <?php
 
-namespace Laravel\Outbox\Support;
+namespace Dnakitare\Outbox\Support;
 
 use Illuminate\Contracts\Config\Repository as Config;
-use Laravel\Outbox\Exceptions\SerializationException;
+use Dnakitare\Outbox\Exceptions\SerializationException;
 
 /**
  * Serializes outbox payloads with a tamper-evident integrity tag and
