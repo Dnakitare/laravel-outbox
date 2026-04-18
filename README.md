@@ -1,187 +1,143 @@
-# Laravel Outbox Pattern
+# Laravel Outbox
 
-A robust implementation of the Transactional Outbox Pattern for Laravel applications. This package helps ensure reliable message delivery in distributed systems by storing events and jobs in a database before processing them.
+A production-grade implementation of the Transactional Outbox Pattern for Laravel.
 
-## 📋 Table of Contents
+Events and queued jobs dispatched inside `Outbox::transaction()` are persisted to an `outbox_messages` table atomically with your business writes. A worker then replays them against the real event dispatcher and job queue. If the downstream fails, messages retry with exponential backoff, and ultimately land in a dead-letter table where they can be inspected and manually reset.
 
-- [Features](#features)
-- [Installation](#installation)
-- [Basic Usage](#basic-usage)
-- [Configuration](#configuration)
-- [Processing Messages](#processing-messages)
-- [Maintenance](#maintenance)
-- [Debugging & Monitoring](#debugging--monitoring)
-- [Health Checks](#health-checks)
-- [Testing](#testing)
-- [Contributing](#contributing)
-- [Security](#security)
-- [Credits](#credits)
-- [License](#license)
+## Requirements
 
-## ✨ Features
+- PHP 8.1+
+- Laravel 10 or 11
+- A database that supports row-level locks (MySQL 8+, MariaDB 10.6+, PostgreSQL 9.5+). SQLite works for testing but has no `SKIP LOCKED` so workers will serialize.
 
-- 🔒 **Transactional Integrity**: Events and jobs are stored alongside your database changes
-- 🔄 **Reliable Processing**: Batch processing with configurable sizes and automatic retries
-- 📬 **Dead Letter Queue**: Automatic handling of failed messages
-- 📊 **Monitoring**: Comprehensive monitoring and debugging tools
-- 🏥 **Health Checks**: Built-in health checks and statistics
-- 🛠️ **Maintenance Tools**: Console commands for managing messages
-- ⚙️ **Configurable**: Extensive configuration options
-- 🧪 **Testing Utilities**: Helpers for testing your outbox implementation
-
-## 🚀 Installation
-
-You can install the package via composer:
+## Installation
 
 ```bash
 composer require laravel/outbox
-```
-
-After installing, publish and run the migrations:
-
-```bash
-php artisan vendor:publish --provider="Laravel\Outbox\OutboxServiceProvider"
+php artisan vendor:publish --tag=outbox-config
+php artisan vendor:publish --tag=outbox-migrations
 php artisan migrate
 ```
 
-## 📝 Basic Usage
-
-Use the Outbox facade to wrap your database transactions:
+## Usage
 
 ```php
 use Laravel\Outbox\Facades\Outbox;
 
-Outbox::transaction('Order', $orderId, function () use ($order) {
-    // Your database operations
+Outbox::transaction('Order', $order->id, function () use ($order) {
     $order->save();
-    
-    // Events and jobs will be stored in the outbox
+
     event(new OrderCreated($order));
-    ProcessOrder::dispatch($order);
+    SendReceipt::dispatch($order);
 });
 ```
 
-## ⚙️ Configuration
+Inside the closure, `event()` and `dispatch()` are intercepted: nothing fires on the real event bus or goes to the real queue. They are persisted with your `$order->save()` in one SQL transaction. After commit, a worker (`outbox:process`) picks them up and fires them for real.
 
-Configure the package in `config/outbox.php`:
+### Allowlist your event/job classes
+
+Outbox refuses to deserialize classes that aren't explicitly allowed. Add yours to `config/outbox.php`:
 
 ```php
-return [
-    'table' => [
-        'messages' => 'outbox_messages',
-        'dead_letter' => 'outbox_dead_letter',
+'serialization' => [
+    'allowed_classes' => [
+        App\Events\OrderCreated::class,
+        App\Jobs\SendReceipt::class,
     ],
-    
-    'processing' => [
-        'max_attempts' => 3,
-        'batch_size' => 100,
-        'process_immediately' => true,
-        'process_delay' => 1,
-    ],
-    
-    'dead_letter' => [
-        'enabled' => true,
-        'retention_days' => 30,
-    ],
-];
+],
 ```
 
-## 🔄 Processing Messages
+This is a defense-in-depth measure on top of HMAC integrity checks. See [Security](#security) below.
 
-Process messages using the provided artisan commands:
+### Running the worker
 
 ```bash
-# Process pending messages
-php artisan outbox:process
+# Supervised (recommended in production):
+php artisan outbox:process --batch=100 --sleep=1
 
-# Process in a continuous loop with custom batch size
-php artisan outbox:process --batch=50 --loop
-
-# Process with sleep between batches
-php artisan outbox:process --sleep=5 --loop
+# One shot (cron-driven):
+php artisan outbox:process --once
 ```
 
-## 🛠️ Maintenance
+The worker responds to `SIGTERM`/`SIGINT` and exits cleanly between batches.
 
-Manage your outbox with these commands:
+If you prefer, enable `process_immediately` in config and each successful transaction will enqueue a `ProcessOutboxMessages` job onto your normal queue worker — useful when you already have `queue:work` running and don't want a dedicated outbox worker.
+
+## Delivery semantics
+
+**At-least-once.** A message may be delivered more than once in the face of worker crashes between `dispatch` and `markAsComplete`. Design your event listeners and job handlers to be idempotent (e.g. use the `correlation_id` as a dedup key, or check business state before applying side-effects).
+
+**Ordering is preserved within a transaction.** Messages from the same `Outbox::transaction()` call carry a `sequence_number` and are claimed in order. Across transactions there is no ordering guarantee.
+
+**Backoff between retries.** On failure, a message is rescheduled with truncated exponential backoff plus full jitter. Configure via `processing.backoff.*`. Once `max_attempts` is exhausted, the message is marked `failed` and copied to the dead-letter table.
+
+## Concurrency
+
+`claimPendingMessages()` uses `SELECT ... FOR UPDATE SKIP LOCKED` on MySQL/Postgres so you can run many workers horizontally without contention. Each worker sees a disjoint batch. Without `SKIP LOCKED` (older MySQL, SQLite), workers still work correctly — they just serialize.
+
+## Operations
 
 ```bash
-# Prune old messages
-php artisan outbox:prune --days=7
-
-# Retry failed messages
-php artisan outbox:retry --all
-php artisan outbox:retry --id=<message-id>
-
-# Inspect dead letter queue
+# Dead-letter inspection
 php artisan outbox:inspect-dead-letter
-php artisan outbox:inspect-dead-letter --id=<message-id>
+php artisan outbox:inspect-dead-letter --id=<uuid>
+php artisan outbox:inspect-dead-letter --aggregate=Order
+
+# Reset failed messages back to pending (preserves history in each row)
+php artisan outbox:retry --all
+php artisan outbox:retry --id=<uuid1> --id=<uuid2>
+php artisan outbox:retry --all --purge-history  # if you want to discard
+
+# Prune
+php artisan outbox:prune --completed-days=7 --failed-days=30 --dead-letter-days=90
 ```
 
-## 🔍 Debugging & Monitoring
-
-Use the debugger for detailed insights:
+### Health
 
 ```php
-use Laravel\Outbox\Debug\OutboxDebugger;
+use Laravel\Outbox\Facades\Outbox;
 
-$debugger = app(OutboxDebugger::class);
-
-// Inspect specific message
-$details = $debugger->inspectMessage($messageId);
-
-// Find problematic messages
-$issues = $debugger->findProblematicMessages();
-
-// Analyze patterns
-$analysis = $debugger->analyzePatterns();
+Outbox::health();
+// [
+//     'status' => 'healthy'|'warning'|'critical',
+//     'messages' => ['pending' => 0, 'processing' => 0, 'completed' => 1234, ...],
+//     'oldest_pending' => '2026-04-18 12:00:00',
+//     'stuck_processing' => 0,
+//     'lock_timeout_seconds' => 300,
+//     'dead_letter' => ['count' => 0, 'oldest' => null],
+// ]
 ```
 
-## 🏥 Health Checks
+`critical` means at least one message has been in `processing` longer than `outbox.processing.lock_timeout` seconds — likely a worker died mid-batch. Such messages will NOT be retried until you manually reset them (they're not in `pending` state).
 
-Monitor the health of your outbox:
+### Observability hooks
 
-```php
-$health = Outbox::health();
+Three events fire during processing; wire them to your metrics backend:
 
-// Returns:
-[
-    'status' => 'healthy|warning|critical',
-    'messages' => [
-        'pending' => 10,
-        'processing' => 2,
-        'completed' => 1000,
-        'failed' => 5,
-    ],
-    'oldest_pending' => '2024-02-01 12:00:00',
-    'stuck_processing' => 0,
-]
-```
+- `Laravel\Outbox\Events\MessagesStored` — emitted after a successful transaction, with `$transactionId`, `$correlationId`, `$count`.
+- `Laravel\Outbox\Events\MessageProcessed` — emitted after a message is replayed successfully, with `$message` and `$durationSeconds`.
+- `Laravel\Outbox\Events\MessageFailed` — emitted on every failure, with `$message`, `$exception`, `$exhausted` (true when moved to dead-letter).
 
-Get detailed statistics:
+For deeper integration, implement `Laravel\Outbox\Contracts\MetricsCollector` and set its FQCN in `config/outbox.monitoring.metrics_collector`.
 
-```php
-$stats = Outbox::getStats();
-```
+## Security
 
-## 🧪 Testing
+**HMAC-signed payloads.** Every stored payload is prefixed with an HMAC-SHA256 tag computed with your `APP_KEY` (override via `OUTBOX_HMAC_KEY`). A tampered payload fails verification at replay and is sent to dead-letter.
+
+**Class allowlist on deserialization.** `unserialize()` is called with `allowed_classes` populated from `outbox.serialization.allowed_classes`. A payload referencing a class not on the list lands in dead-letter rather than rehydrating.
+
+Together these close the PHP-object-injection attack surface typical of naive outbox implementations: an attacker who gains write access to `outbox_messages` (e.g. SQL injection in another part of your app) cannot turn that into RCE without also stealing the HMAC key.
+
+Report security issues to the package maintainer directly rather than via the public issue tracker.
+
+## Testing
 
 ```bash
 composer test
 ```
 
-## 🤝 Contributing
+The test suite includes unit tests (service, serializer, backoff), integration tests (real repository against SQLite), a concurrency test (disjoint claims), and end-to-end feature tests covering success, retry, backoff, dead-letter, and payload-tampering paths.
 
-Please see [CONTRIBUTING](CONTRIBUTING.md) for details.
+## License
 
-## 🔒 Security
-
-If you discover any security-related issues, please email security@example.com instead of using the issue tracker.
-
-## 👥 Credits
-
-- [Daniel Nakitare](https://github.com/Dnakitare)
-
-## 📄 License
-
-The MIT License (MIT). Please see [License File](LICENSE.md) for more information.
+MIT.
