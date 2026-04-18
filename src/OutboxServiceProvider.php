@@ -2,8 +2,6 @@
 
 namespace Dnakitare\Outbox;
 
-use Illuminate\Contracts\Config\Repository as Config;
-use Illuminate\Support\ServiceProvider;
 use Dnakitare\Outbox\Console\Commands\InspectDeadLetterCommand;
 use Dnakitare\Outbox\Console\Commands\ProcessOutboxCommand;
 use Dnakitare\Outbox\Console\Commands\PruneOutboxCommand;
@@ -12,6 +10,8 @@ use Dnakitare\Outbox\Contracts\MetricsCollector;
 use Dnakitare\Outbox\Contracts\OutboxRepository;
 use Dnakitare\Outbox\Metrics\NullMetricsCollector;
 use Dnakitare\Outbox\Support\PayloadSerializer;
+use Illuminate\Contracts\Config\Repository as Config;
+use Illuminate\Support\ServiceProvider;
 
 class OutboxServiceProvider extends ServiceProvider
 {

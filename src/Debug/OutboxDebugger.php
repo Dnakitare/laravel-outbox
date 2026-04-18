@@ -2,11 +2,11 @@
 
 namespace Dnakitare\Outbox\Debug;
 
+use Dnakitare\Outbox\Exceptions\SerializationException;
+use Dnakitare\Outbox\Support\PayloadSerializer;
 use Illuminate\Contracts\Config\Repository as Config;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
-use Dnakitare\Outbox\Exceptions\SerializationException;
-use Dnakitare\Outbox\Support\PayloadSerializer;
 
 class OutboxDebugger
 {

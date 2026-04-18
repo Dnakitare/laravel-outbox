@@ -2,8 +2,6 @@
 
 namespace Dnakitare\Outbox\Tests\Feature;
 
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Event;
 use Dnakitare\Outbox\Contracts\MetricsCollector;
 use Dnakitare\Outbox\Contracts\OutboxRepository;
 use Dnakitare\Outbox\Events\MessageFailed;
@@ -15,6 +13,8 @@ use Dnakitare\Outbox\Tests\Stubs\TestDeadOnWakeupJob;
 use Dnakitare\Outbox\Tests\Stubs\TestFailingEvent;
 use Dnakitare\Outbox\Tests\Stubs\TestOrderCreated;
 use Dnakitare\Outbox\Tests\TestCase;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
 
 class OutboxProcessingTest extends TestCase
 {

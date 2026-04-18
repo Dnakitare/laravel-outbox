@@ -2,6 +2,13 @@
 
 namespace Dnakitare\Outbox\Jobs;
 
+use Dnakitare\Outbox\Contracts\MetricsCollector;
+use Dnakitare\Outbox\Contracts\OutboxMessage;
+use Dnakitare\Outbox\Contracts\OutboxRepository;
+use Dnakitare\Outbox\Events\MessageFailed;
+use Dnakitare\Outbox\Events\MessageProcessed;
+use Dnakitare\Outbox\Exceptions\SerializationException;
+use Dnakitare\Outbox\Support\BackoffStrategy;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Bus\Dispatcher as BusDispatcher;
 use Illuminate\Contracts\Config\Repository as Config;
@@ -11,13 +18,6 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
-use Dnakitare\Outbox\Contracts\MetricsCollector;
-use Dnakitare\Outbox\Contracts\OutboxMessage;
-use Dnakitare\Outbox\Contracts\OutboxRepository;
-use Dnakitare\Outbox\Events\MessageFailed;
-use Dnakitare\Outbox\Events\MessageProcessed;
-use Dnakitare\Outbox\Exceptions\SerializationException;
-use Dnakitare\Outbox\Support\BackoffStrategy;
 use Throwable;
 
 class ProcessOutboxMessages implements ShouldQueue

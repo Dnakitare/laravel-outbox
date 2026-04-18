@@ -2,11 +2,11 @@
 
 namespace Dnakitare\Outbox\Console\Commands;
 
+use Dnakitare\Outbox\Exceptions\SerializationException;
+use Dnakitare\Outbox\Support\PayloadSerializer;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
-use Dnakitare\Outbox\Exceptions\SerializationException;
-use Dnakitare\Outbox\Support\PayloadSerializer;
 
 class InspectDeadLetterCommand extends Command
 {

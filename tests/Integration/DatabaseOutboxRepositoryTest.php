@@ -2,12 +2,12 @@
 
 namespace Dnakitare\Outbox\Tests\Integration;
 
-use Illuminate\Support\Carbon;
-use Illuminate\Support\Str;
 use Dnakitare\Outbox\DatabaseOutboxRepository;
 use Dnakitare\Outbox\Support\PayloadSerializer;
 use Dnakitare\Outbox\Tests\Stubs\TestOrderCreated;
 use Dnakitare\Outbox\Tests\TestCase;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Str;
 
 class DatabaseOutboxRepositoryTest extends TestCase
 {

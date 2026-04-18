@@ -2,8 +2,8 @@
 
 namespace Dnakitare\Outbox\Support;
 
-use Illuminate\Contracts\Queue\Queue as QueueContract;
 use Dnakitare\Outbox\OutboxService;
+use Illuminate\Contracts\Queue\Queue as QueueContract;
 
 /**
  * A Queue implementation that, instead of pushing jobs to a real queue

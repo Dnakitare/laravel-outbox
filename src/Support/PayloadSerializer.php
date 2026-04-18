@@ -2,8 +2,8 @@
 
 namespace Dnakitare\Outbox\Support;
 
-use Illuminate\Contracts\Config\Repository as Config;
 use Dnakitare\Outbox\Exceptions\SerializationException;
+use Illuminate\Contracts\Config\Repository as Config;
 
 /**
  * Serializes outbox payloads with a tamper-evident integrity tag and

@@ -2,8 +2,8 @@
 
 namespace Dnakitare\Outbox\Support;
 
-use Illuminate\Queue\QueueManager;
 use Dnakitare\Outbox\OutboxService;
+use Illuminate\Queue\QueueManager;
 
 /**
  * During an outbox transaction, replaces the 'queue' container binding

@@ -2,12 +2,12 @@
 
 namespace Dnakitare\Outbox;
 
-use Illuminate\Contracts\Config\Repository as Config;
-use Illuminate\Database\ConnectionInterface;
-use Illuminate\Support\Str;
 use Dnakitare\Outbox\Contracts\OutboxMessage;
 use Dnakitare\Outbox\Contracts\OutboxRepository;
 use Dnakitare\Outbox\Support\PayloadSerializer;
+use Illuminate\Contracts\Config\Repository as Config;
+use Illuminate\Database\ConnectionInterface;
+use Illuminate\Support\Str;
 use Throwable;
 
 class DatabaseOutboxRepository implements OutboxRepository

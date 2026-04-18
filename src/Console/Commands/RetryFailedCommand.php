@@ -2,9 +2,9 @@
 
 namespace Dnakitare\Outbox\Console\Commands;
 
+use Dnakitare\Outbox\Contracts\OutboxRepository;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
-use Dnakitare\Outbox\Contracts\OutboxRepository;
 
 class RetryFailedCommand extends Command
 {

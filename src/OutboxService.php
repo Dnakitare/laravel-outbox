@@ -2,13 +2,6 @@
 
 namespace Dnakitare\Outbox;
 
-use Illuminate\Contracts\Config\Repository as Config;
-use Illuminate\Contracts\Container\Container;
-use Illuminate\Contracts\Events\Dispatcher;
-use Illuminate\Queue\QueueManager;
-use Illuminate\Support\Carbon;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
 use Dnakitare\Outbox\Contracts\MetricsCollector;
 use Dnakitare\Outbox\Contracts\OutboxRepository;
 use Dnakitare\Outbox\Events\MessagesStored;
@@ -16,6 +9,13 @@ use Dnakitare\Outbox\Exceptions\TransactionException;
 use Dnakitare\Outbox\Support\CollectingEventDispatcher;
 use Dnakitare\Outbox\Support\CollectingQueueManager;
 use Dnakitare\Outbox\Support\PayloadSerializer;
+use Illuminate\Contracts\Config\Repository as Config;
+use Illuminate\Contracts\Container\Container;
+use Illuminate\Contracts\Events\Dispatcher;
+use Illuminate\Queue\QueueManager;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 class OutboxService
 {

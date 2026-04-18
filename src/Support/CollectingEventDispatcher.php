@@ -2,8 +2,8 @@
 
 namespace Dnakitare\Outbox\Support;
 
-use Illuminate\Contracts\Events\Dispatcher;
 use Dnakitare\Outbox\OutboxService;
+use Illuminate\Contracts\Events\Dispatcher;
 
 /**
  * Intercepts events dispatched during an outbox transaction and routes

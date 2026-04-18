@@ -2,11 +2,11 @@
 
 namespace Dnakitare\Outbox\Tests\Integration;
 
-use Illuminate\Support\Str;
 use Dnakitare\Outbox\DatabaseOutboxRepository;
 use Dnakitare\Outbox\Support\PayloadSerializer;
 use Dnakitare\Outbox\Tests\Stubs\TestOrderCreated;
 use Dnakitare\Outbox\Tests\TestCase;
+use Illuminate\Support\Str;
 
 /**
  * SQLite doesn't implement FOR UPDATE SKIP LOCKED, so we can't
