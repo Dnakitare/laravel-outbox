@@ -13,6 +13,7 @@ use Dnakitare\Outbox\Tests\Stubs\TestDeadOnWakeupJob;
 use Dnakitare\Outbox\Tests\Stubs\TestFailingEvent;
 use Dnakitare\Outbox\Tests\Stubs\TestOrderCreated;
 use Dnakitare\Outbox\Tests\TestCase;
+use Illuminate\Contracts\Bus\Dispatcher;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 
@@ -182,7 +183,7 @@ class OutboxProcessingTest extends TestCase
             $this->app->make(OutboxRepository::class),
             $this->app->make(MetricsCollector::class),
             $this->app['events'],
-            $this->app->make(\Illuminate\Contracts\Bus\Dispatcher::class),
+            $this->app->make(Dispatcher::class),
             $this->app['config'],
         );
     }

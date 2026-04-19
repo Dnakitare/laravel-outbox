@@ -22,9 +22,9 @@
     },
     "require-dev": {
         "friendsofphp/php-cs-fixer": "^3.49",
+        "larastan/larastan": "^2.0|^3.0",
         "laravel/pint": "^1.13",
         "mockery/mockery": "^1.6",
-        "nunomaduro/larastan": "^2.0|^3.0",
         "orchestra/testbench": "^8.0|^9.0|^10.0",
         "orchestra/workbench": "^8.0|^9.0|^10.0",
         "pestphp/pest": "^2.0|^3.0",

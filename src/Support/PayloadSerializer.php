@@ -2,6 +2,8 @@
 
 namespace Dnakitare\Outbox\Support;
 
+use Carbon\Carbon;
+use Carbon\CarbonImmutable;
 use Dnakitare\Outbox\Exceptions\SerializationException;
 use Illuminate\Contracts\Config\Repository as Config;
 
@@ -103,8 +105,8 @@ class PayloadSerializer
         $defaults = [
             \DateTime::class,
             \DateTimeImmutable::class,
-            \Carbon\Carbon::class,
-            \Carbon\CarbonImmutable::class,
+            Carbon::class,
+            CarbonImmutable::class,
             \Illuminate\Support\Carbon::class,
         ];
 

@@ -6,6 +6,7 @@ use Dnakitare\Outbox\Contracts\MetricsCollector;
 use Dnakitare\Outbox\Contracts\OutboxRepository;
 use Dnakitare\Outbox\Events\MessagesStored;
 use Dnakitare\Outbox\Exceptions\TransactionException;
+use Dnakitare\Outbox\Jobs\ProcessOutboxMessages;
 use Dnakitare\Outbox\Support\CollectingEventDispatcher;
 use Dnakitare\Outbox\Support\CollectingQueueManager;
 use Dnakitare\Outbox\Support\PayloadSerializer;
@@ -229,7 +230,7 @@ class OutboxService
         }
 
         try {
-            $job = new \Dnakitare\Outbox\Jobs\ProcessOutboxMessages(
+            $job = new ProcessOutboxMessages(
                 batchSize: (int) $this->config->get('outbox.processing.batch_size', 100)
             );
 

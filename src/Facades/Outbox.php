@@ -2,6 +2,7 @@
 
 namespace Dnakitare\Outbox\Facades;
 
+use Dnakitare\Outbox\OutboxService;
 use Illuminate\Support\Facades\Facade;
 
 /**
@@ -10,7 +11,7 @@ use Illuminate\Support\Facades\Facade;
  * @method static array health()
  * @method static array getStats()
  *
- * @see \Dnakitare\Outbox\OutboxService
+ * @see OutboxService
  */
 class Outbox extends Facade
 {

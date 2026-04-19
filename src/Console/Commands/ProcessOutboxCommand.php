@@ -56,10 +56,11 @@ class ProcessOutboxCommand extends Command
                 break;
             }
 
-            if ($processed === 0) {
-                if ($sleep > 0 && ! $this->shouldStop) {
-                    sleep($sleep);
-                }
+            if ($processed === 0 && $sleep > 0) {
+                // sleep() is signal-aware under pcntl_async_signals, so a
+                // SIGTERM/SIGINT during the nap interrupts it and we'll
+                // exit the while on the next iteration.
+                sleep($sleep);
             }
         }
 

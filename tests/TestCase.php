@@ -3,6 +3,11 @@
 namespace Dnakitare\Outbox\Tests;
 
 use Dnakitare\Outbox\OutboxServiceProvider;
+use Dnakitare\Outbox\Tests\Stubs\TestDeadOnWakeupJob;
+use Dnakitare\Outbox\Tests\Stubs\TestEvent;
+use Dnakitare\Outbox\Tests\Stubs\TestFailingEvent;
+use Dnakitare\Outbox\Tests\Stubs\TestJob;
+use Dnakitare\Outbox\Tests\Stubs\TestOrderCreated;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Orchestra\Testbench\TestCase as Orchestra;
 
@@ -60,11 +65,11 @@ class TestCase extends Orchestra
 
         // Permit the test stub classes to rehydrate.
         $app['config']->set('outbox.serialization.allowed_classes', [
-            \Dnakitare\Outbox\Tests\Stubs\TestEvent::class,
-            \Dnakitare\Outbox\Tests\Stubs\TestJob::class,
-            \Dnakitare\Outbox\Tests\Stubs\TestOrderCreated::class,
-            \Dnakitare\Outbox\Tests\Stubs\TestFailingEvent::class,
-            \Dnakitare\Outbox\Tests\Stubs\TestDeadOnWakeupJob::class,
+            TestEvent::class,
+            TestJob::class,
+            TestOrderCreated::class,
+            TestFailingEvent::class,
+            TestDeadOnWakeupJob::class,
         ]);
     }
 }
