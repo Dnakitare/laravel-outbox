@@ -11,6 +11,12 @@ SemVer strictly.
 
 ## [Unreleased]
 
+### Changed
+
+- Require PHP 8.2+. PHP 8.1 reached end-of-life in December 2025 and
+  Pest 2's transitive dependency `brianium/paratest` now requires
+  PHP 8.2+, so the matrix combination could not resolve.
+
 ## [0.1.0-beta1] - 2026-04-18
 
 Initial public release. Not yet battle-tested in production — adopt with
@@ -55,7 +61,7 @@ eyes open and file issues generously.
 
 ### Supported
 
-- PHP 8.1, 8.2, 8.3, 8.4
+- PHP 8.2, 8.3, 8.4
 - Laravel 10.x, 11.x, 12.x
 - MySQL 8+, MariaDB 10.6+, PostgreSQL 9.5+, SQLite (testing only)
 

@@ -21,7 +21,7 @@ they can be inspected and manually reset.
 
 ## Requirements
 
-- PHP 8.1+ (PHP 8.2+ for Laravel 12)
+- PHP 8.2+ (PHP 8.1 is EOL)
 - Laravel 10, 11, or 12
 - A database that supports row-level locks: MySQL 8+, MariaDB 10.6+,
   PostgreSQL 9.5+. SQLite works for testing but serialises workers.
