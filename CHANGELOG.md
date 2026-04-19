@@ -11,11 +11,22 @@ SemVer strictly.
 
 ## [Unreleased]
 
+## [0.1.0-beta2] - 2026-04-19
+
+Functional superset of 0.1.0-beta1. **No user-facing code changes.**
+Release exists so Composer resolvers see a clean `php: ^8.2`
+constraint (0.1.0-beta1 was tagged with the pre-fix `^8.1`).
+
 ### Changed
 
 - Require PHP 8.2+. PHP 8.1 reached end-of-life in December 2025 and
   Pest 2's transitive dependency `brianium/paratest` now requires
   PHP 8.2+, so the matrix combination could not resolve.
+- Dev-only security advisories resolved via dependency bumps:
+  `phpunit/phpunit` (CVE-2026-24765), `symfony/http-foundation`
+  (CVE-2025-64500), `psy/psysh` (CVE-2026-25129).
+- `nunomaduro/larastan` (abandoned) → `larastan/larastan`.
+- `actions/checkout@v4` → `v6` (clears Node.js 20 deprecation).
 
 ## [0.1.0-beta1] - 2026-04-18
 
@@ -75,5 +86,6 @@ eyes open and file issues generously.
 - No metrics adapter ships — only `NullMetricsCollector`. Implement
   `MetricsCollector` in your app to push to Prometheus/StatsD.
 
-[Unreleased]: https://github.com/dnakitare/laravel-outbox/compare/0.1.0-beta1...HEAD
+[Unreleased]: https://github.com/dnakitare/laravel-outbox/compare/0.1.0-beta2...HEAD
+[0.1.0-beta2]: https://github.com/dnakitare/laravel-outbox/releases/tag/0.1.0-beta2
 [0.1.0-beta1]: https://github.com/dnakitare/laravel-outbox/releases/tag/0.1.0-beta1
